@@ -1,0 +1,19 @@
+# Full OpenNext Worker (API + SSR). Deploy with: npm run deploy:worker
+name = "selfregscience-pages-api"
+main = ".open-next/worker.js"
+compatibility_date = "2025-05-10"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+keep_names = false
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "selfregscience-pages-api"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "selfregscience"
+database_id = "dc2d6536-4f3b-45b6-aa2a-98efc138597c"

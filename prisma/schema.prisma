@@ -1,0 +1,369 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                    String   @id @default(cuid())
+  email                 String   @unique
+  passwordHash          String
+  timezone              String   @default("Asia/Shanghai")
+  defaultFocusMinutes   Int      @default(60)
+  defaultAppointmentMin Int      @default(15)
+  primaryAppointmentSec Int      @default(870)
+  instantMaxDelayMin    Int      @default(5)
+  settlementHour        Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  sacredSeats        SacredSeat[]
+  ctdpNetwork        CtdpNetwork?
+  auxChains          AuxChain[]
+  focusSessions      FocusSession[]
+  precedents         Precedent[]
+  eventLogs          EventLog[]
+  policies           Policy[]
+  policyTrees        PolicyTree[]
+  policyGroups       PolicyGroup[]
+  compartmentFreezes CompartmentFreeze[]
+  habitProgress      HabitProgress[]
+  dailyWinLogs       DailyWinLog[]
+  collapseRecords    CollapseRecord[]
+  notifications      Notification[]
+}
+
+model CtdpNetwork {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  completeness        Float    @default(0)
+  defaultSacredSeatId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultSacredSeat SacredSeat? @relation(fields: [defaultSacredSeatId], references: [id], onDelete: SetNull)
+  nodes             CtdpNode[]
+}
+
+model CtdpNode {
+  id                   String   @id @default(cuid())
+  networkId            String
+  title                String
+  state                String   @default("initial") // initial | executing | success | failed
+  refTargetId          String?
+  refCount             Int      @default(0)
+  judgmentRule         String?
+  layoutX              Float?
+  layoutY              Float?
+  pendingAppointmentId String?
+  activeSessionId      String?
+  sacredSeatId         String?
+  awaitingJudgment     Boolean  @default(false)
+  judgmentReason       String?  // missed_trigger | session_complete
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  network     CtdpNetwork   @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  refTarget   CtdpNode?     @relation("CtdpRef", fields: [refTargetId], references: [id], onDelete: SetNull)
+  referrers   CtdpNode[]    @relation("CtdpRef")
+  sacredSeat  SacredSeat?   @relation(fields: [sacredSeatId], references: [id], onDelete: SetNull)
+  appointments Appointment[]
+  focusSessions FocusSession[]
+
+  @@index([networkId, state])
+}
+
+model SacredSeat {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  triggerType     String   @default("custom")
+  triggerPayload  String
+  minFocusMinutes Int      @default(60)
+  webhookUrl      String?
+  layoutX         Float?
+  layoutY         Float?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  auxChains     AuxChain[]
+  focusSessions FocusSession[]
+  ctdpNodes     CtdpNode[]
+  ctdpNetworks  CtdpNetwork[]
+
+  @@index([userId])
+}
+
+model AuxChain {
+  id            String   @id @default(cuid())
+  userId        String
+  sacredSeatId  String
+  currentStreak Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sacredSeat   SacredSeat    @relation(fields: [sacredSeatId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@unique([userId, sacredSeatId])
+}
+
+model Appointment {
+  id           String   @id @default(cuid())
+  auxChainId   String
+  ctdpNodeId   String?
+  kind         String   @default("primary")
+  parentId     String?
+  signalType   String
+  scheduledAt  DateTime @default(now())
+  deadlineAt   DateTime
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
+
+  auxChain AuxChain  @relation(fields: [auxChainId], references: [id], onDelete: Cascade)
+  ctdpNode CtdpNode? @relation(fields: [ctdpNodeId], references: [id], onDelete: SetNull)
+  parent   Appointment?  @relation("AppointmentChain", fields: [parentId], references: [id])
+  children Appointment[] @relation("AppointmentChain")
+
+  @@index([auxChainId, status])
+  @@index([ctdpNodeId, status])
+}
+
+model FocusSession {
+  id            String    @id @default(cuid())
+  userId        String
+  sacredSeatId  String
+  ctdpNodeId    String?
+  status        String    @default("focusing")
+  mode          String    @default("standard")
+  targetMinutes Int
+  triggeredAt   DateTime  @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+  violationNote String?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sacredSeat SacredSeat @relation(fields: [sacredSeatId], references: [id], onDelete: Cascade)
+  ctdpNode   CtdpNode?  @relation(fields: [ctdpNodeId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([ctdpNodeId])
+}
+
+model Precedent {
+  id          String   @id @default(cuid())
+  userId      String
+  scopeType   String
+  scopeId     String
+  behaviorKey String
+  description String?
+  allowedAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scopeType, scopeId, behaviorKey])
+  @@index([userId, scopeType, scopeId])
+}
+
+model EventLog {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  payload   String   @default("{}")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Policy {
+  id                  String   @id @default(cuid())
+  userId              String
+  templateId          String?
+  title               String
+  type                String
+  triggerJson         String?
+  constraintJson      String?
+  interventionNode    String?
+  steadyStateTarget   String?
+  isRelevant          Boolean  @default(true)
+  difficulty          Int      @default(3)
+  maintenanceCost     Int      @default(3)
+  isUpgradeable       Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  treeNodes       PolicyTreeNode[]
+  groupMembers    PolicyGroupMember[]
+  upgrades        PolicyUpgrade[]
+  habitProgress   HabitProgress?
+  template        PolicyTemplate?   @relation(fields: [templateId], references: [id])
+
+  @@index([userId])
+}
+
+model PolicyTemplate {
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  title             String
+  type              String
+  triggerJson       String?
+  constraintJson    String?
+  interventionNode  String?
+  steadyStateTarget String?
+  difficulty        Int      @default(2)
+  maintenanceCost   Int      @default(2)
+  isUpgradeable     Boolean  @default(false)
+  description       String?
+
+  policies Policy[]
+}
+
+model PolicyTree {
+  id        String   @id @default(cuid())
+  userId    String
+  slotName  String   @default("default")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes PolicyTreeNode[]
+
+  @@unique([userId, slotName])
+}
+
+model PolicyTreeNode {
+  id           String   @id @default(cuid())
+  treeId       String
+  policyId     String
+  parentId     String?
+  position     Int
+  status       String   @default("active")
+  addedOnDate  String
+  groupId      String?
+  layoutX      Float?
+  layoutY      Float?
+
+  tree      PolicyTree       @relation(fields: [treeId], references: [id], onDelete: Cascade)
+  policy    Policy             @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  parent    PolicyTreeNode?    @relation("TreeHierarchy", fields: [parentId], references: [id])
+  children  PolicyTreeNode[]   @relation("TreeHierarchy")
+  group     PolicyGroup?       @relation(fields: [groupId], references: [id])
+  dailyLogs PolicyDailyLog[]
+  collapses CollapseRecord[]
+
+  @@index([treeId, status])
+}
+
+model PolicyDailyLog {
+  id        String   @id @default(cuid())
+  nodeId    String
+  date      String
+  satisfied Boolean
+  note      String?
+
+  node PolicyTreeNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([nodeId, date])
+}
+
+model PolicyGroup {
+  id         String @id @default(cuid())
+  userId     String
+  name       String
+  faultQuota Int    @default(1)
+
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members PolicyGroupMember[]
+  nodes   PolicyTreeNode[]
+}
+
+model PolicyGroupMember {
+  id       String @id @default(cuid())
+  groupId  String
+  policyId String
+
+  group  PolicyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  policy Policy      @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, policyId])
+}
+
+model CompartmentFreeze {
+  id              String   @id @default(cuid())
+  userId          String
+  reason          String
+  precedentKey    String?
+  startAt         DateTime
+  endAt           DateTime
+  affectedNodeIds String
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PolicyUpgrade {
+  id         String @id @default(cuid())
+  policyId   String @unique
+  level      Int    @default(0)
+  paramsJson String @default("{}")
+
+  policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+}
+
+model HabitProgress {
+  id                  String  @id @default(cuid())
+  userId              String
+  policyId            String  @unique
+  internalizationDays Int     @default(0)
+  lifetimeDays        Int     @default(0)
+  lastSatisfiedDate   String?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+}
+
+model DailyWinLog {
+  id          String  @id @default(cuid())
+  userId      String
+  date        String
+  entriesJson String  @default("[]")
+  dayName     String?
+  winLevel    String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model CollapseRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  nodeId    String
+  reasonTag String
+  notes     String?
+  createdAt DateTime @default(now())
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node PolicyTreeNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

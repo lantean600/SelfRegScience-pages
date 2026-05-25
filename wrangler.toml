@@ -1,0 +1,23 @@
+# Cloudflare Pages (thin proxy + static). Full app runs on Worker selfregscience-pages-api.
+name = "selfregscience-pages"
+pages_build_output_dir = ".open-next"
+compatibility_date = "2025-05-10"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[vars]
+CF_PAGES = "1"
+
+[[services]]
+binding = "API"
+service = "selfregscience"
+
+[env.production]
+compatibility_date = "2025-05-10"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[env.production.vars]
+CF_PAGES = "1"
+
+[[env.production.services]]
+binding = "API"
+service = "selfregscience"
