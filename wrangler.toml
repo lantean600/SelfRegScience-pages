@@ -1,4 +1,4 @@
-# Cloudflare Pages (thin proxy + static). Full app runs on Worker selfregscience-pages-api.
+# Cloudflare Pages (thin proxy + static). API via Service Binding → Worker selfregscience.
 name = "selfregscience-pages"
 pages_build_output_dir = ".open-next"
 compatibility_date = "2025-05-10"

@@ -17,6 +17,12 @@ curl -sS https://selfregscience-pages.pages.dev/api/health
 
 `npm test` 在无本地 SQLite/D1 时会跳过部分集成用例；纯逻辑用例应全部通过。
 
+## 已自动抽查（2026-05-25）
+
+- [x] `/` 营销首页可加载（标题、CTA、Mechanics 区块）
+- [x] `/login` 表单与导航
+- [x] `/guide` 导览页（见下方手测若需滚动/动效）
+
 ## 手动
 
 - [ ] 营销首页 Hero 可纵向滚动，Mechanics 无横滚卡顿

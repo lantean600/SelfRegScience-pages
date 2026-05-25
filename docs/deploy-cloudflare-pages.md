@@ -41,7 +41,18 @@ npm run build:pages
 npx wrangler pages deploy .open-next --project-name selfregscience-pages --branch main
 ```
 
-或在 Dashboard 连接本仓库 Git：
+### 方式 A：GitHub Actions（推荐，已配置）
+
+推送 `main` 后由 [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml) 自动 `npm run build:pages` 并 `wrangler pages deploy`。
+
+在 GitHub 仓库 **Settings → Secrets and variables → Actions** 添加：
+
+| Secret | 说明 |
+|--------|------|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token（需 **Account** `Cloudflare Pages: Edit` + **Account** `Workers Scripts: Read`） |
+| `CLOUDFLARE_ACCOUNT_ID` | Dashboard 右侧 Account ID |
+
+### 方式 B：Dashboard 连 Git
 
 - **Build command**：`npm ci && npm run build:pages`
 - **Build output**：由 `wrangler.toml` 的 `pages_build_output_dir = ".open-next"` 决定
@@ -66,9 +77,15 @@ npx wrangler pages deploy .open-next --project-name selfregscience-pages --branc
 3. 大陆关代理可访问（主入口）
 4. `npm run lint` / `npm test` 通过
 
+## 本地预览
+
+- **Next + SQLite**：`npm run dev`（日常开发）
+- **`wrangler pages dev`**：会本地加载完整 OpenNext handler，Prisma WASM 在 Pages 本地运行时不可用 → `/api/health` 503。**属预期**；生产依赖薄代理转发到已部署 Worker `selfregscience`。
+
 ## 故障排查
 
 - **503 + Prisma WASM 文案**：Pages 误上传了完整 `worker.js`；应只保留 [`scripts/prepare-pages-output.mjs`](../scripts/prepare-pages-output.mjs) 生成的薄代理。
+- **本地 `pages dev` 503**：见上文「本地预览」，勿与生产混淆。
 - **503 API service binding missing**：`wrangler.toml` 中 `API` 未指向已部署的 Worker `selfregscience`。
 - **登录失败**：`SESSION_SECRET` 未在 Pages 或 Worker 配置。
 - **与旧站数据不一致**：确认绑定 Worker 名为 `selfregscience` 且 D1 为同一库。
