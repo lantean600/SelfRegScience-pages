@@ -34,7 +34,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy -c wrangler.selfregscience.jsonc
+          command: opennextjs-cloudflare deploy --config wrangler.selfregscience.jsonc
 
       - name: Prepare Pages thin proxy output
         run: node scripts/prepare-pages-output.mjs

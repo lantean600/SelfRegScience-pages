@@ -48,7 +48,7 @@ npm run deploy:production
 推送 `main` 后由 [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml) 顺序执行：
 
 1. `npm run build:opennext`（单次构建）
-2. `wrangler deploy -c wrangler.selfregscience.jsonc`
+2. `opennextjs-cloudflare deploy --config wrangler.selfregscience.jsonc`
 3. `node scripts/prepare-pages-output.mjs`
 4. `wrangler pages deploy .open-next ...`
 

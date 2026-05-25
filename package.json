@@ -15,7 +15,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "build:opennext": "opennextjs-cloudflare build",
     "build:pages": "npm run build:opennext && node scripts/prepare-pages-output.mjs",
-    "deploy:worker:production": "npm run build:opennext && wrangler deploy -c wrangler.selfregscience.jsonc",
+    "deploy:worker:production": "npm run build:opennext && opennextjs-cloudflare deploy --config wrangler.selfregscience.jsonc",
     "deploy:production": "npm run deploy:worker:production && node scripts/prepare-pages-output.mjs && wrangler pages deploy .open-next --project-name selfregscience-pages --branch main",
     "deploy:worker": "npm run build:opennext && opennextjs-cloudflare deploy --config wrangler.worker.toml",
     "preview:pages": "npm run build:pages && wrangler pages dev .open-next",

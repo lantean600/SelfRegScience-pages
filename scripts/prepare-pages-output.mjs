@@ -43,6 +43,7 @@ writeFileSync(
     {
       version: 1,
       include: ["/*"],
+      exclude: [],
     },
     null,
     2,
