@@ -26,8 +26,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Pages output
-        run: npm run build:pages
+      - name: OpenNext build (single artifact for Worker + Pages)
+        run: npm run build:opennext
+
+      - name: Deploy Worker selfregscience (HTML + ASSETS + API)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy -c wrangler.selfregscience.jsonc
+
+      - name: Prepare Pages thin proxy output
+        run: node scripts/prepare-pages-output.mjs
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

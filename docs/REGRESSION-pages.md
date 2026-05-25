@@ -13,6 +13,8 @@ curl -sS https://selfregscience-pages.pages.dev/api/health
 
 期望 health JSON：`ok: true`, `databaseBackend: "d1"`, `hasSessionSecret: true`。
 
+样式：`/_next/static/css/*.css` 必须为 **200**（与首页 HTML 同一次 Worker 构建）。
+
 最近一次生产检查（2026-05-25）：`ok: true`, `databaseBackend: "d1"`, `hasD1Binding: true`, `hasSessionSecret: true`。
 
 `npm test` 在无本地 SQLite/D1 时会跳过部分集成用例；纯逻辑用例应全部通过。

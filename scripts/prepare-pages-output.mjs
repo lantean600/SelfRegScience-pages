@@ -35,13 +35,14 @@ writeFileSync(
   "utf8",
 );
 
+// All routes (including /_next/static) go through the thin proxy → Worker ASSETS,
+// so HTML and static chunks share the same OpenNext build (no Pages/Worker split).
 writeFileSync(
   routesPath,
   JSON.stringify(
     {
       version: 1,
       include: ["/*"],
-      exclude: ["/_next/static/*"],
     },
     null,
     2,

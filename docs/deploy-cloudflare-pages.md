@@ -5,16 +5,17 @@
 ## 架构
 
 ```text
-用户 → *.pages.dev (Pages 静态 + 薄代理 Functions)
-         → Service Binding → Worker `selfregscience`（现有 OpenNext 全栈）
+用户 → *.pages.dev (薄代理 Pages Functions，全部路径含 /_next/static)
+         → Service Binding → Worker `selfregscience`（OpenNext：SSR + ASSETS + API）
          → D1 `selfregscience`（与旧入口同一库）
 ```
 
+**禁止 HTML/静态双构建分裂**：HTML 与 `/_next/static/*` 必须来自**同一次** `build:opennext` 并**同一** Worker 部署。切勿让 Pages 单独托管静态而 Worker 提供另一版 HTML（会导致 CSS/JS 404、页面无样式）。
+
 Pages **不会**二次打包完整 `worker.js`（否则会破坏 Prisma WASM），只上传：
 
-- `.open-next/assets` 静态资源
 - 薄代理 `_worker.js`（转发到 `selfregscience` Worker）
-- `_routes.json`
+- `_routes.json`（`include: ["/*"]`，无 static exclude）
 
 ## 前置条件
 
@@ -29,7 +30,9 @@ Pages **不会**二次打包完整 `worker.js`（否则会破坏 Prisma WASM）�
 |------|------|
 | `npm run dev` | Next 本地开发（SQLite） |
 | `npm run build:pages` | OpenNext 构建 + 生成 Pages 代理产物 |
-| `npm run deploy:pages` | 部署到 Pages 生产（`main` 分支） |
+| `npm run deploy:worker:production` | 部署 Worker `selfregscience`（[`wrangler.selfregscience.jsonc`](../wrangler.selfregscience.jsonc)） |
+| `npm run deploy:production` | Worker + Pages 一次发布（推荐） |
+| `npm run deploy:pages` | 仅 Pages（需 Worker 已与本次 build 同步） |
 | `npm run deploy:worker` | 可选：单独部署 `selfregscience-pages-api` Worker（默认不用） |
 | `npm run cf:secret:session` | 为 Pages 项目写入 `SESSION_SECRET`（与 Worker 一致为佳） |
 
@@ -37,19 +40,23 @@ Pages **不会**二次打包完整 `worker.js`（否则会破坏 Prisma WASM）�
 
 ```bash
 npm ci
-npm run build:pages
-npx wrangler pages deploy .open-next --project-name selfregscience-pages --branch main
+npm run deploy:production
 ```
 
 ### 方式 A：GitHub Actions（推荐，已配置）
 
-推送 `main` 后由 [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml) 自动 `npm run build:pages` 并 `wrangler pages deploy`。
+推送 `main` 后由 [`.github/workflows/deploy-pages.yml`](../.github/workflows/deploy-pages.yml) 顺序执行：
+
+1. `npm run build:opennext`（单次构建）
+2. `wrangler deploy -c wrangler.selfregscience.jsonc`
+3. `node scripts/prepare-pages-output.mjs`
+4. `wrangler pages deploy .open-next ...`
 
 在 GitHub 仓库 **Settings → Secrets and variables → Actions** 添加：
 
 | Secret | 说明 |
 |--------|------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token（需 **Account** `Cloudflare Pages: Edit` + **Account** `Workers Scripts: Read`） |
+| `CLOUDFLARE_API_TOKEN` | 需 **Cloudflare Pages: Edit** + **Workers Scripts: Edit** |
 | `CLOUDFLARE_ACCOUNT_ID` | Dashboard 右侧 Account ID |
 
 ### 方式 B：Dashboard 连 Git
@@ -84,6 +91,7 @@ npx wrangler pages deploy .open-next --project-name selfregscience-pages --branc
 
 ## 故障排查
 
+- **页面无样式 / 黑底白字**：`/_next/static/*.css` 404。多为只部署了 Pages 未同步 Worker，或 `_routes.json` 把 static 留在 Pages 而 HTML 来自旧 Worker。修复：同次 `build:opennext` 后执行 `deploy:worker:production` 再 `deploy:pages`，并确保无 `exclude: ["/_next/static/*"]`。
 - **503 + Prisma WASM 文案**：Pages 误上传了完整 `worker.js`；应只保留 [`scripts/prepare-pages-output.mjs`](../scripts/prepare-pages-output.mjs) 生成的薄代理。
 - **本地 `pages dev` 503**：见上文「本地预览」，勿与生产混淆。
 - **503 API service binding missing**：`wrangler.toml` 中 `API` 未指向已部署的 Worker `selfregscience`。
@@ -92,4 +100,4 @@ npx wrangler pages deploy .open-next --project-name selfregscience-pages --branc
 
 ## 与旧 Worker 仓同步代码
 
-功能在 `SelfRegScience` 开发，合并后复制到本仓再 `npm run deploy:pages`。
+功能在 `SelfRegScience` 开发，合并后复制到本仓再 `npm run deploy:production`。

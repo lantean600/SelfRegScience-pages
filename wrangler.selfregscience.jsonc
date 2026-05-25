@@ -1,0 +1,32 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": ".open-next/worker.js",
+	"name": "selfregscience",
+	"compatibility_date": "2025-05-10",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"keep_names": false,
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "selfregscience"
+		}
+	],
+	"secrets": {
+		"required": ["SESSION_SECRET"]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "selfregscience",
+			"database_id": "dc2d6536-4f3b-45b6-aa2a-98efc138597c",
+			"remote": true
+		}
+	]
+}
