@@ -16,6 +16,10 @@ export function mapApiNodeToRow(
     awaitingJudgment?: boolean;
     judgmentReason?: string | null;
     appointments?: { id: string; deadlineAt: string | Date; status: string }[];
+    activeSession?: {
+      startedAt: string | Date;
+      targetMinutes: number;
+    } | null;
   },
 ): CtdpNodeRow {
   return {
@@ -37,6 +41,15 @@ export function mapApiNodeToRow(
         typeof a.deadlineAt === "string" ? a.deadlineAt : a.deadlineAt.toISOString(),
       status: a.status,
     })),
+    activeSession: n.activeSession
+      ? {
+          startedAt:
+            typeof n.activeSession.startedAt === "string"
+              ? n.activeSession.startedAt
+              : n.activeSession.startedAt.toISOString(),
+          targetMinutes: n.activeSession.targetMinutes,
+        }
+      : null,
   };
 }
 

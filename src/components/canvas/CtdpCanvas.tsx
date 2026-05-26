@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Connection, NodeMouseHandler } from "@xyflow/react";
 import { Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -23,6 +23,7 @@ import { useCtdpForestMutation, useCtdpNodes } from "@/components/ctdp/CtdpNodes
 import { mapApiNodeToRow } from "@/components/ctdp/ctdp-node-mapper";
 import { CtdpFloatingMenu, type MenuItem } from "@/components/ctdp/CtdpFloatingMenu";
 import { CtdpNodeDialog } from "@/components/ctdp/CtdpNodeDialog";
+import { CtdpJudgeModal } from "@/components/ctdp/CtdpJudgeModal";
 import { CtdpGlobalSettingsModal } from "@/components/ctdp/CtdpGlobalSettingsModal";
 import { setCtdpCreateAnchor } from "@/components/ctdp/ctdp-create-anchor";
 import type { CanvasNodeData } from "@/components/canvas/types";
@@ -41,6 +42,7 @@ export type CtdpNodeRow = {
   awaitingJudgment: boolean;
   judgmentReason: string | null;
   appointments: { id: string; deadlineAt: string; status: string }[];
+  activeSession: { startedAt: string; targetMinutes: number } | null;
 };
 
 type MenuState =
@@ -58,9 +60,22 @@ export function CtdpCanvas() {
   const [editNodeId, setEditNodeId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null);
+  const [judgeNodeId, setJudgeNodeId] = useState<string | null>(null);
+  const autoJudgeOpenedRef = useRef(new Set<string>());
 
   const nodeMap = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const editNode = editNodeId ? nodeMap.get(editNodeId) : undefined;
+  const judgeNode = judgeNodeId ? nodeMap.get(judgeNodeId) : undefined;
+
+  useEffect(() => {
+    if (judgeNodeId) return;
+    const missed = nodes.find(
+      (n) => n.awaitingJudgment && n.judgmentReason === "missed_trigger",
+    );
+    if (!missed || autoJudgeOpenedRef.current.has(missed.id)) return;
+    autoJudgeOpenedRef.current.add(missed.id);
+    setJudgeNodeId(missed.id);
+  }, [nodes, judgeNodeId]);
 
   const structureKey = useMemo(
     () => nodes.map((n) => `${n.id}:${n.refTargetId ?? ""}`).join("|"),
@@ -139,6 +154,69 @@ export function CtdpCanvas() {
     }
   }
 
+  async function completeFocusAndJudge(nodeId: string, sessionId: string) {
+    setLoadingNodeId(nodeId);
+    setJudgeNodeId(nodeId);
+    try {
+      await mutateCtdp({
+        url: `/api/focus-sessions/${sessionId}/complete`,
+        init: {
+          method: "POST",
+          body: { action: "complete" },
+        },
+        optimistic: () =>
+          patchNode(nodeId, {
+            activeSessionId: null,
+            awaitingJudgment: true,
+            judgmentReason: "session_complete",
+          }),
+        rollback: () => {
+          setJudgeNodeId(null);
+        },
+      });
+    } catch {
+      setJudgeNodeId(null);
+    } finally {
+      setLoadingNodeId(null);
+    }
+  }
+
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (event, flowNode) => {
+      event.stopPropagation();
+      const data = flowNode.data as CanvasNodeData;
+      if (data.kind !== "ctdpNode") return;
+
+      const n = nodeMap.get(data.entityId);
+      if (!n || loadingNodeId === n.id) return;
+
+      const actionState = getCtdpActionState(n, false);
+
+      if (actionState.canArm) {
+        void nodeAction(n.id, "arm", { pendingAppointmentId: "pending" });
+        return;
+      }
+      if (actionState.canTrigger) {
+        void nodeAction(
+          n.id,
+          "trigger",
+          { state: "executing", pendingAppointmentId: null },
+          { mode: "standard" },
+        );
+        return;
+      }
+      if (actionState.canCompleteFocus && n.activeSessionId) {
+        void completeFocusAndJudge(n.id, n.activeSessionId);
+        return;
+      }
+      if (n.awaitingJudgment) {
+        setJudgeNodeId(n.id);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nodeMap, loadingNodeId],
+  );
+
   const onNodeContextMenu: NodeMouseHandler = useCallback((event, node) => {
     event.preventDefault();
     const data = node.data as CanvasNodeData;
@@ -174,65 +252,12 @@ export function CtdpCanvas() {
       },
     ];
 
-    if (actionState.canArm) {
-      items.push({
-        type: "item",
-        label: "执行（预约）",
-        onClick: () =>
-          nodeAction(n.id, "arm", { pendingAppointmentId: "pending" }),
-      });
-    }
-    if (actionState.canTrigger) {
-      items.push({
-        type: "item",
-        label: "触发神圣座位",
-        onClick: () =>
-          nodeAction(n.id, "trigger", { state: "executing", pendingAppointmentId: null }, {
-            mode: "standard",
-          }),
-      });
-    }
     if (actionState.canAbandon) {
-      items.push(
-        {
-          type: "item",
-          label: "完成专注",
-          disabled: !actionState.canCompleteFocus,
-          onClick: async () => {
-            if (!actionState.canCompleteFocus || !n.activeSessionId) return;
-            await mutateCtdp({
-              url: `/api/focus-sessions/${n.activeSessionId}/complete`,
-              init: {
-                method: "POST",
-                body: JSON.stringify({ action: "complete" }),
-              },
-              optimistic: () =>
-                patchNode(n.id, {
-                  awaitingJudgment: true,
-                  judgmentReason: "session_complete",
-                }),
-              mapResult: (data) => {
-                if (data && typeof data === "object" && "id" in data) {
-                  upsertNode(mapApiNodeToRow(data as Parameters<typeof mapApiNodeToRow>[0]));
-                }
-              },
-            });
-            setMenu(null);
-          },
-        },
-        {
-          type: "item",
-          label: "放弃",
-          danger: true,
-          onClick: () => nodeAction(n.id, "abandon", { state: "failed", activeSessionId: null }),
-        },
-      );
-    }
-    if (actionState.canJudge) {
       items.push({
         type: "item",
-        label: "判定…",
-        onClick: () => setEditNodeId(n.id),
+        label: "放弃",
+        danger: true,
+        onClick: () => nodeAction(n.id, "abandon", { state: "failed", activeSessionId: null }),
       });
     }
     items.push(
@@ -272,6 +297,7 @@ export function CtdpCanvas() {
           labelZoomThreshold={settings.labelZoomThreshold}
           onLayoutCommit={onLayoutCommit}
           onConnect={onConnect}
+          onNodeClick={onNodeClick}
           onNodeContextMenu={onNodeContextMenu}
           onPaneContextMenu={onPaneContextMenu}
         >
@@ -281,13 +307,13 @@ export function CtdpCanvas() {
                 className="max-w-sm pointer-events-auto"
                 quote="森林始于一颗可裁决的节点"
                 title="尚无节点"
-                description="点击 + 或长按画布新建首个 CtdpNode"
+                description="点击 + 新建首个 CtdpNode"
               />
             </div>
           )}
 
           <div className="absolute left-3 top-3 z-10 pointer-events-none">
-            <p className="section-marker bg-panel/80 px-2 py-1">Right Click / Connect / Judge</p>
+            <p className="section-marker bg-panel/80 px-2 py-1">单击节点 · 连线 · 右键编辑</p>
           </div>
 
           <div className="absolute top-3 right-3 z-10 flex gap-2">
@@ -319,10 +345,10 @@ export function CtdpCanvas() {
           </div>
 
           <p className="absolute bottom-12 left-3 z-10 text-caption pointer-events-none bg-panel/70 px-2 py-1 rounded-sm hidden md:block">
-            滚轮缩放 · 右键操作
+            滚轮缩放 · 单击节点推进
           </p>
           <p className="absolute bottom-12 left-3 z-10 text-caption pointer-events-none bg-panel/70 px-2 py-1 rounded-sm md:hidden">
-            双指缩放 · 长按节点 · 点 + 新建
+            双指缩放 · 单击节点 · 点 + 新建
           </p>
         </CtdpFlowCanvas>
       </FigureFrame>
@@ -350,6 +376,14 @@ export function CtdpCanvas() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
+      {judgeNode && (
+        <CtdpJudgeModal
+          nodeId={judgeNode.id}
+          judgmentRule={judgeNode.judgmentRule}
+          onClose={() => setJudgeNodeId(null)}
+          onResolved={() => setJudgeNodeId(null)}
+        />
+      )}
     </CtdpCanvasTheme>
   );
 }

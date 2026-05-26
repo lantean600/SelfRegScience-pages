@@ -38,6 +38,7 @@ type CtdpFlowCanvasProps = {
   layoutMeta: CtdpForceLayoutMeta;
   onLayoutCommit?: (nodeId: string, x: number, y: number) => void;
   onConnect?: OnConnect;
+  onNodeClick?: NodeMouseHandler;
   onNodeContextMenu?: NodeMouseHandler;
   onPaneContextMenu?: (event: ReactMouseEvent | MouseEvent) => void;
   labelZoomThreshold?: number;
@@ -58,6 +59,7 @@ function CanvasInner({
   layoutMeta,
   onLayoutCommit,
   onConnect,
+  onNodeClick,
   onNodeContextMenu,
   onPaneContextMenu,
   children,
@@ -152,6 +154,7 @@ function CanvasInner({
         nodeTypes={canvasNodeTypes}
         edgeTypes={canvasEdgeTypes}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}

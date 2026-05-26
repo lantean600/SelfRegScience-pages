@@ -3,6 +3,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { useCtdpSettings } from "@/components/ctdp/CtdpSettingsContext";
 import { useCtdpZoom } from "@/components/ctdp/CtdpZoomContext";
+import { NodeCountdownBadge } from "@/components/canvas/nodes/NodeCountdownBadge";
 import { cn } from "@/lib/cn";
 import type { CtdpNodeStateKey } from "@/lib/ctdp-ui-settings";
 import type { CanvasNodeData } from "@/components/canvas/types";
@@ -27,6 +28,14 @@ export function CtdpNode({ data, selected }: NodeProps) {
   const executing = state === "executing";
   const labelVisible = showLabels || selected;
   const refCount = Number(d.meta?.refCount ?? 0);
+  const appointmentDeadline = d.meta?.appointmentDeadline as string | null | undefined;
+  const focusStartedAt = d.meta?.focusStartedAt as string | null | undefined;
+  const focusTargetMinutes = d.meta?.focusTargetMinutes as number | null | undefined;
+  const countdownMin = d.meta?.countdownMin as number | undefined;
+  const showAppointmentCountdown = armed && (appointmentDeadline || countdownMin != null);
+  const showFocusCountdown =
+    executing &&
+    (countdownMin != null || (Boolean(focusStartedAt) && focusTargetMinutes != null));
 
   const rootStyle = {
     "--ctdp-node-size": `${size}px`,
@@ -53,6 +62,15 @@ export function CtdpNode({ data, selected }: NodeProps) {
       />
       <div className="ctdp-node-highlight" aria-hidden />
 
+      {(showAppointmentCountdown || showFocusCountdown) && (
+        <NodeCountdownBadge
+          deadline={showAppointmentCountdown ? (appointmentDeadline ?? undefined) : undefined}
+          startedAt={showFocusCountdown ? (focusStartedAt ?? undefined) : undefined}
+          durationMinutes={showFocusCountdown ? (focusTargetMinutes ?? undefined) : undefined}
+          staticMinutes={countdownMin}
+        />
+      )}
+
       <div
         className={cn("ctdp-node-label-wrap transition-opacity duration-200", {
           "opacity-100": labelVisible,
@@ -65,8 +83,6 @@ export function CtdpNode({ data, selected }: NodeProps) {
         {selected && (
           <p className="ctdp-node-sublabel">
             {STATE_LABELS[state]}
-            {armed && " · 待触发"}
-            {awaiting && " · 待判定"}
             {!armed && !awaiting && refCount > 0 && ` · ref ${refCount}`}
           </p>
         )}

@@ -71,7 +71,13 @@ export function CtdpNodesProvider({
       const i = prev.findIndex((n) => n.id === row.id);
       if (i < 0) return [...prev, row];
       const next = [...prev];
-      next[i] = { ...next[i], ...row };
+      const prevRow = next[i];
+      next[i] = {
+        ...prevRow,
+        ...row,
+        appointments: row.appointments.length > 0 ? row.appointments : prevRow.appointments,
+        activeSession: row.activeSession ?? prevRow.activeSession,
+      };
       return next;
     });
   }, []);

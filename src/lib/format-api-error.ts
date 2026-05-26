@@ -39,9 +39,6 @@ export function formatApiError(error: unknown): string {
   if (full.includes("__name is not defined")) {
     return "Worker 打包配置异常（__name），请确认 wrangler keep_names 与最新部署。";
   }
-  if (full.includes("Wasm code generation disallowed") || full.includes("WebAssembly.Module")) {
-    return "Prisma 在 Pages/Worker 运行时需 schema 中 runtime = \"cloudflare\"，请重新 prisma generate 并部署。";
-  }
   if (full.includes("DriverAdapter") || full.match(/\bP[0-9]{4}\b/)) {
     return "D1 数据库查询失败，请检查 migration 与 Prisma D1 适配器配置。";
   }

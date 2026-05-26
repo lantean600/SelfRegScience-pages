@@ -35,6 +35,12 @@ export default async function CtdpPage() {
       deadlineAt: a.deadlineAt.toISOString(),
       status: a.status,
     })),
+    activeSession: n.activeSession
+      ? {
+          startedAt: n.activeSession.startedAt.toISOString(),
+          targetMinutes: n.activeSession.targetMinutes,
+        }
+      : null,
   }));
 
   return (

@@ -3,9 +3,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
-import { Countdown } from "@/components/ui/Countdown";
-import { CtdpJudgePanel } from "@/components/CtdpJudgePanel";
-import { isAppointmentOverdue } from "@/lib/date-utils";
 import type { CtdpNodeRow } from "@/components/canvas/CtdpCanvas";
 import { mapApiNodeToRow } from "@/components/ctdp/ctdp-node-mapper";
 import { useCtdpForestMutation } from "@/components/ctdp/CtdpNodesContext";
@@ -44,6 +41,7 @@ export function CtdpNodeDialog({
       awaitingJudgment: false,
       judgmentReason: null,
       appointments: [],
+      activeSession: null,
     };
   }
   const [title, setTitle] = useState(node?.title ?? "");
@@ -56,20 +54,6 @@ export function CtdpNodeDialog({
     setRefTargetId(node?.refTargetId ?? "");
     setError("");
   }, [node]);
-
-  const apptDeadline = node?.appointments[0]?.deadlineAt ?? null;
-  const showArm =
-    mode === "edit" &&
-    node?.state === "initial" &&
-    !node.pendingAppointmentId &&
-    !node.awaitingJudgment;
-  const showTrigger =
-    mode === "edit" &&
-    node?.state === "initial" &&
-    node.pendingAppointmentId &&
-    apptDeadline &&
-    !isAppointmentOverdue(apptDeadline) &&
-    !node.awaitingJudgment;
 
   function applyApiNode(data: unknown) {
     if (data && typeof data === "object" && "id" in data) {
@@ -134,15 +118,6 @@ export function CtdpNodeDialog({
     }
   }
 
-  async function action(path: string, body?: object) {
-    if (!node) return;
-    await mutateCtdp({
-      url: `/api/ctdp/nodes/${node.id}/${path}`,
-      init: { method: "POST", body },
-      mapResult: applyApiNode,
-    });
-  }
-
   const refOptions = allNodes.filter((n) => n.id !== node?.id);
 
   return (
@@ -187,72 +162,6 @@ export function CtdpNodeDialog({
             <p>引用属性：{node.refCount}</p>
             {node.judgmentRule && (
               <p className="whitespace-pre-wrap">规则：{node.judgmentRule}</p>
-            )}
-          </div>
-        )}
-
-        {mode === "edit" && node && (
-          <div className="space-y-2 border-t border-rule pt-3">
-            {showArm && (
-              <Button size="sm" className="w-full" onClick={() => action("arm")}>
-                执行（预约信号）
-              </Button>
-            )}
-            {showTrigger && apptDeadline && (
-              <>
-                <Countdown deadline={apptDeadline} label="触发截止" />
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className="w-full"
-                  onClick={() => action("trigger", { mode: "standard" })}
-                >
-                  触发神圣座位
-                </Button>
-              </>
-            )}
-            {node.state === "executing" && (
-              <>
-                <Button
-                  size="sm"
-                  className="w-full"
-                  disabled={!node.activeSessionId}
-                  onClick={async () => {
-                    if (!node.activeSessionId) return;
-                    await mutateCtdp({
-                      url: `/api/focus-sessions/${node.activeSessionId}/complete`,
-                      init: {
-                        method: "POST",
-                        body: { action: "complete" },
-                      },
-                      optimistic: () =>
-                        patchNode(node.id, {
-                          awaitingJudgment: true,
-                          judgmentReason: "session_complete",
-                        }),
-                      mapResult: applyApiNode,
-                    });
-                  }}
-                >
-                  完成专注
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  className="w-full"
-                  onClick={() => action("abandon")}
-                >
-                  放弃
-                </Button>
-              </>
-            )}
-            {node.awaitingJudgment && (
-              <CtdpJudgePanel
-                nodeId={node.id}
-                judgmentRule={node.judgmentRule}
-                reason={node.judgmentReason}
-                onResolved={onClose}
-              />
             )}
           </div>
         )}

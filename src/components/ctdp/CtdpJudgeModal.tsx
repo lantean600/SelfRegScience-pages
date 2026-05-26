@@ -2,22 +2,21 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Field";
-import { LegalBlock } from "@/components/ui/LegalBlock";
+import { Input } from "@/components/ui/Field";
 import type { JudgeVerdict } from "@/lib/domain/ctdp-node";
 import { mapApiNodeToRow } from "@/components/ctdp/ctdp-node-mapper";
 import { useCtdpForestMutation } from "@/components/ctdp/CtdpNodesContext";
 import { ServerMutationError } from "@/lib/mutations/server-mutation";
 
-export function CtdpJudgePanel({
+export function CtdpJudgeModal({
   nodeId,
   judgmentRule,
-  reason,
+  onClose,
   onResolved,
 }: {
   nodeId: string;
   judgmentRule?: string | null;
-  reason?: string | null;
+  onClose: () => void;
   onResolved?: () => void;
 }) {
   const { mutateCtdp, upsertNode } = useCtdpForestMutation();
@@ -50,6 +49,7 @@ export function CtdpJudgePanel({
         },
       });
       onResolved?.();
+      onClose();
     } catch (e) {
       setError(e instanceof ServerMutationError ? e.message : "判定失败");
     } finally {
@@ -58,49 +58,53 @@ export function CtdpJudgePanel({
   }
 
   return (
-    <div className="space-y-3">
-      {error && <p className="text-xs text-signal">{error}</p>}
-      {reason && (
-        <p className="text-xs text-ink-muted">
-          {reason === "missed_trigger" ? "逾期未触发 · 待判定" : "专注完成 · 待判定"}
-        </p>
-      )}
-      {judgmentRule && (
-        <p className="text-xs text-ink-muted whitespace-pre-wrap border border-rule rounded-sm p-2">
-          当前规则：{judgmentRule}
-        </p>
-      )}
-      <Field label="规则修正（选项一）">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/30"
+      role="dialog"
+      aria-modal
+      aria-labelledby="ctdp-judge-title"
+    >
+      <div className="w-full max-w-[calc(100%-2rem)] sm:max-w-sm rounded-sm border border-rule bg-panel shadow-xl p-5 space-y-4 mx-auto">
+        <h2 id="ctdp-judge-title" className="font-serif text-lg">
+          判定
+        </h2>
+
+        {error && <p className="text-sm text-signal">{error}</p>}
+
+        {judgmentRule && (
+          <p className="text-sm text-ink-muted whitespace-pre-wrap border border-rule rounded-sm p-3">
+            当前规则：{judgmentRule}
+          </p>
+        )}
+
         <Input
           value={ruleText}
           onChange={(e) => setRuleText(e.target.value)}
-          placeholder="例如：允许任务执行时刷哔哩哔哩"
+          placeholder="新规则（成功+新规则时填写）"
           disabled={loading}
         />
-      </Field>
-      <LegalBlock prefix="§">
-        选项一将写入判定规则并记为成功；选项二为彻底失败并沿引用方向传播。
-      </LegalBlock>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={loading} onClick={() => judge("success")}>
-          判定成功
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={loading || !ruleText.trim()}
-          onClick={() => judge("rule_fix")}
-        >
-          规则修正 → 成功
-        </Button>
-        <Button
-          size="sm"
-          variant="danger"
-          disabled={loading}
-          onClick={() => judge("total_fail")}
-        >
-          彻底失败
-        </Button>
+
+        <div className="flex flex-col gap-2">
+          <Button size="sm" disabled={loading} onClick={() => judge("success")}>
+            完全成功
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={loading || !ruleText.trim()}
+            onClick={() => judge("rule_fix")}
+          >
+            成功+新规则
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={loading}
+            onClick={() => judge("total_fail")}
+          >
+            完全失败
+          </Button>
+        </div>
       </div>
     </div>
   );

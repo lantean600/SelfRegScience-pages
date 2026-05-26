@@ -29,6 +29,11 @@ export function buildCtdpCanvasGraph(nodes: CtdpNodeRow[], settings: CtdpUiSetti
           refCount: node.refCount,
           armed,
           awaitingJudgment: node.awaitingJudgment,
+          appointmentDeadline: armed ? (node.appointments[0]?.deadlineAt ?? null) : null,
+          focusStartedAt:
+            node.state === "executing" ? (node.activeSession?.startedAt ?? null) : null,
+          focusTargetMinutes:
+            node.state === "executing" ? (node.activeSession?.targetMinutes ?? null) : null,
         },
         highlighted: node.state === "executing" || node.awaitingJudgment || armed,
       },

@@ -93,32 +93,23 @@ function getD1PrismaFromBinding(binding: NonNullable<CloudflareEnv["DB"]>): Pris
 }
 
 async function getCloudflareDbContext(): Promise<CloudflareContext | null> {
-  // Pages Functions: async context first (sync ALS path often unavailable).
   try {
-    const context = await getCloudflareContext({ async: true });
-    mirrorSessionSecretToProcessEnv(context.env);
-    return context;
-  } catch (asyncError) {
-    if (!isCloudflareWorkerRuntime()) {
-      if (shouldRequireCloudflareDbBinding()) {
-        throw new Error("Cloudflare runtime context is unavailable; cannot resolve D1 binding.", {
-          cause: asyncError,
-        });
-      }
-      return null;
-    }
-    try {
+    // In the deployed Worker, context lives on ALS; sync avoids the nodejs→wrangler fallback path.
+    if (isCloudflareWorkerRuntime()) {
       const context = getCloudflareContext({ async: false });
       mirrorSessionSecretToProcessEnv(context.env);
       return context;
-    } catch (syncError) {
-      if (shouldRequireCloudflareDbBinding()) {
-        throw new Error("Cloudflare runtime context is unavailable; cannot resolve D1 binding.", {
-          cause: syncError,
-        });
-      }
-      return null;
     }
+    const context = await getCloudflareContext({ async: true });
+    mirrorSessionSecretToProcessEnv(context.env);
+    return context;
+  } catch (error) {
+    if (shouldRequireCloudflareDbBinding()) {
+      throw new Error("Cloudflare runtime context is unavailable; cannot resolve D1 binding.", {
+        cause: error,
+      });
+    }
+    return null;
   }
 }
 

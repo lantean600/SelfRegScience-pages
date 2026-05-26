@@ -404,8 +404,35 @@ export async function getNetworkSnapshot(userId: string) {
     orderBy: { createdAt: "asc" },
   });
 
+  const sessionIds = nodes
+    .map((n) => n.activeSessionId)
+    .filter((id): id is string => Boolean(id));
+
+  const sessions =
+    sessionIds.length > 0
+      ? await prisma.focusSession.findMany({
+          where: { id: { in: sessionIds }, status: "focusing" },
+          select: { id: true, startedAt: true, triggeredAt: true, targetMinutes: true },
+        })
+      : [];
+
+  const sessionById = new Map(sessions.map((s) => [s.id, s]));
+
+  const enrichedNodes = nodes.map((n) => {
+    const session = n.activeSessionId ? sessionById.get(n.activeSessionId) : undefined;
+    return {
+      ...n,
+      activeSession: session
+        ? {
+            startedAt: session.startedAt ?? session.triggeredAt,
+            targetMinutes: session.targetMinutes,
+          }
+        : null,
+    };
+  });
+
   const inDegree = new Map<string, number>();
-  for (const n of nodes) {
+  for (const n of enrichedNodes) {
     if (n.refTargetId) {
       inDegree.set(n.refTargetId, (inDegree.get(n.refTargetId) ?? 0) + 1);
     }
@@ -413,7 +440,7 @@ export async function getNetworkSnapshot(userId: string) {
 
   return {
     network,
-    nodes,
+    nodes: enrichedNodes,
     inDegree: Object.fromEntries(inDegree),
   };
 }
