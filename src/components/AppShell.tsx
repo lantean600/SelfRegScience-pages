@@ -37,7 +37,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           <li key={href}>
             <Link
               href={href}
-              prefetch
+              prefetch={false}
               onClick={onNavigate}
               className={cn("app-nav-link", active && "is-active")}
             >
@@ -52,6 +52,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -68,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh bg-surface">
       <div className="app-shell-width flex min-h-dvh gap-0 md:gap-8 px-3 py-3 md:px-4 md:py-5">
         <aside className="hidden w-[220px] shrink-0 lg:block">
-          <Link href="/dashboard" prefetch className="no-underline hover:no-underline block pb-6 hairline-b">
+          <Link href="/dashboard" prefetch={false} className="no-underline hover:no-underline block pb-6 hairline-b">
             <p className="text-kicker">SRS</p>
             <p className="mt-2 font-display text-xl normal-case tracking-tight text-ink">自控力协议</p>
           </Link>
@@ -88,7 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="app-shell-mobile-header flex items-center justify-between gap-3 hairline-b pb-3 lg:hidden">
-            <Link href="/dashboard" prefetch className="no-underline hover:no-underline min-w-0">
+            <Link href="/dashboard" prefetch={false} className="no-underline hover:no-underline min-w-0">
               <p className="text-kicker">SRS</p>
               <p className="font-display text-lg normal-case leading-none truncate">自控力协议</p>
             </Link>
@@ -121,7 +122,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
           )}
 
-          <main className="flex-1 page-enter py-4 md:py-8">{children}</main>
+          <main key={pathname} className="flex-1 page-enter py-4 md:py-8">
+            {children}
+          </main>
         </div>
       </div>
     </div>

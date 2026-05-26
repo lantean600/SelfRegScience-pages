@@ -3,7 +3,9 @@
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
-const APP_PREFIXES = ["/dashboard", "/ctdp", "/rsip", "/review", "/guide"];
+import { APP_ROUTE_PREFIXES } from "@/lib/motion/app-routes";
+
+const APP_PREFIXES = APP_ROUTE_PREFIXES;
 
 export function ThemeScope({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

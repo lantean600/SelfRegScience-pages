@@ -6,13 +6,13 @@ import Lenis from "lenis";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { INTRO_EVENT } from "@/components/motion/SiteIntro";
+import { APP_ROUTE_PREFIXES } from "@/lib/motion/app-routes";
 import { prefersNativeScroll } from "@/lib/motion/device-motion";
 import { prefersReducedMotion } from "@/lib/motion/prefersReducedMotion";
 
 gsap.registerPlugin(ScrollTrigger);
 
 const MARKETING_HOME = "/";
-const APP_ROUTE_PREFIXES = ["/dashboard", "/ctdp", "/rsip", "/review", "/guide"];
 
 function useNativeScroll(pathname: string) {
   if (prefersNativeScroll()) return true;
@@ -25,16 +25,25 @@ function clearScrollLocks() {
   document.documentElement.classList.remove("is-scroll-blocked");
 }
 
+function applyMotionDataset() {
+  const reduced = prefersReducedMotion();
+  document.documentElement.dataset.motion = reduced ? "reduced" : "enhanced";
+}
+
 export function SiteMotionProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const nativeScroll = useNativeScroll(pathname);
   const motionRootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    applyMotionDataset();
+  }, [pathname]);
+
+  useEffect(() => {
     clearScrollLocks();
 
     if (nativeScroll) {
-      window.scrollTo(0, 0);
+      requestAnimationFrame(() => window.scrollTo(0, 0));
     }
 
     const id = requestAnimationFrame(() => {
@@ -49,9 +58,7 @@ export function SiteMotionProvider({ children }: { children: React.ReactNode }) 
   }, [pathname, nativeScroll]);
 
   useEffect(() => {
-    const reduced = prefersReducedMotion();
-    document.documentElement.dataset.motion = reduced ? "reduced" : "enhanced";
-    if (reduced || nativeScroll) return;
+    if (prefersReducedMotion() || nativeScroll) return;
 
     const lenis = new Lenis({
       duration: 0.95,
@@ -103,7 +110,6 @@ export function SiteMotionProvider({ children }: { children: React.ReactNode }) 
       lenis.off("scroll", onScroll);
       lenis.destroy();
       ScrollTrigger.scrollerProxy(document.documentElement, {});
-      delete document.documentElement.dataset.motion;
     };
   }, [nativeScroll]);
 

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { shouldPrefetchHref } from "@/lib/motion/app-routes";
 import Link from "next/link";
 import { ButtonHTMLAttributes } from "react";
 
@@ -47,7 +48,7 @@ export function Button({
 
   if (href) {
     return (
-      <Link href={href} prefetch className={classes}>
+      <Link href={href} prefetch={shouldPrefetchHref(href)} className={classes}>
         {props.children}
       </Link>
     );

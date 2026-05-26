@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useReactFlow, type Node } from "@xyflow/react";
 import { isPendingCtdpId } from "@/components/ctdp/ctdp-create-anchor";
 import {
@@ -94,8 +94,29 @@ export function CtdpForceController({
   const prevStructureRef = useRef("");
   const prevSettingsRef = useRef("");
   const layoutGenRef = useRef(0);
+  const mountedRef = useRef(false);
 
   metaRef.current = layoutMeta;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const safeApplyPositions = useCallback(
+    (
+      positions: Map<string, { x: number; y: number }>,
+      radii: Map<string, number>,
+      defaultR: number,
+      onlyIds?: Set<string>,
+    ) => {
+      if (!mountedRef.current) return;
+      applyPositions(setNodes, positions, radii, defaultR, onlyIds);
+    },
+    [setNodes],
+  );
 
   useEffect(() => {
     const gen = ++layoutGenRef.current;
@@ -127,7 +148,8 @@ export function CtdpForceController({
       simRef.current?.stop();
       simRef.current = null;
 
-      const isStale = () => cancelled || layoutGenRef.current !== gen;
+      const isStale = () =>
+        cancelled || layoutGenRef.current !== gen || !mountedRef.current;
 
       const pendingSwap =
         removed.length > 0 &&
@@ -152,7 +174,7 @@ export function CtdpForceController({
           iterations: 120,
         });
         if (isStale()) return;
-        applyPositions(setNodes, positions, radii, defaultR);
+        safeApplyPositions(positions, radii, defaultR);
         simRef.current = sim;
       } else if (onlyAdditions && !settingsChanged) {
         const newIdSet = new Set(added);
@@ -171,7 +193,7 @@ export function CtdpForceController({
           chunkSize: 7,
           onProgress: (positions) => {
             if (isStale()) return;
-            applyPositions(setNodes, positions, radii, defaultR, newIdSet);
+            safeApplyPositions(positions, radii, defaultR, newIdSet);
           },
         });
         if (isStale()) return;
@@ -205,11 +227,11 @@ export function CtdpForceController({
           chunkSize: 8,
           onProgress: (pos) => {
             if (isStale()) return;
-            applyPositions(setNodes, pos, radii, defaultR);
+            safeApplyPositions(pos, radii, defaultR);
           },
         });
         if (isStale()) return;
-        applyPositions(setNodes, positions, radii, defaultR);
+        safeApplyPositions(positions, radii, defaultR);
         simRef.current = sim;
       } else if (settingsChanged && added.length === 0 && removed.length === 0) {
         const fixedIds = new Set(currentIds);
@@ -246,11 +268,16 @@ export function CtdpForceController({
           chunkSize: 10,
           onProgress: (pos) => {
             if (isStale()) return;
-            applyPositions(setNodes, pos, radii, defaultR, added.length > 0 ? newIdSet : undefined);
+            safeApplyPositions(
+              pos,
+              radii,
+              defaultR,
+              added.length > 0 ? newIdSet : undefined,
+            );
           },
         });
         if (isStale()) return;
-        applyPositions(setNodes, positions, radii, defaultR);
+        safeApplyPositions(positions, radii, defaultR);
         simRef.current = sim;
       }
 
@@ -266,7 +293,7 @@ export function CtdpForceController({
       simRef.current?.stop();
       simRef.current = null;
     };
-  }, [structureKey, settingsKey, getNodes, setNodes]);
+  }, [structureKey, settingsKey, getNodes, setNodes, safeApplyPositions]);
 
   useEffect(() => {
     function onDragStart(e: Event) {
@@ -293,8 +320,8 @@ export function CtdpForceController({
       }
 
       heatSimForDrag(sim, (positions) => {
-        applyPositions(
-          setNodes,
+        if (!mountedRef.current) return;
+        safeApplyPositions(
           positions,
           metaRef.current.radii,
           metaRef.current.radii.values().next().value ?? 22,
@@ -334,7 +361,7 @@ export function CtdpForceController({
       window.removeEventListener("ctdp-force-drag", onDrag);
       window.removeEventListener("ctdp-force-drag-stop", onDragStop);
     };
-  }, [getNodes, setNodes]);
+  }, [getNodes, setNodes, safeApplyPositions]);
 
   return null;
 }

@@ -1,12 +1,20 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useMemo, useState } from "react";
 import type { Connection, NodeMouseHandler } from "@xyflow/react";
 import { Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FigureFrame } from "@/components/ui/Card";
-import { CtdpFlowCanvas } from "@/components/canvas/CtdpFlowCanvas";
+
+const CtdpFlowCanvas = dynamic(
+  () =>
+    import("@/components/canvas/CtdpFlowCanvas").then((m) => ({
+      default: m.CtdpFlowCanvas,
+    })),
+  { ssr: false },
+);
 import { getCtdpActionState } from "@/components/ctdp/ctdp-action-state";
 import { buildCtdpCanvasGraph } from "@/components/ctdp/ctdp-canvas-graph";
 import { CtdpCanvasTheme } from "@/components/ctdp/CtdpCanvasTheme";

@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { AppRouteGate } from "@/components/motion/AppRouteGate";
 
 export default async function AppLayout({
   children,
@@ -10,5 +11,9 @@ export default async function AppLayout({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      <AppRouteGate>{children}</AppRouteGate>
+    </AppShell>
+  );
 }
