@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Lenis from "lenis";
 import gsap from "gsap";
@@ -21,9 +21,31 @@ function useNativeScroll(pathname: string) {
   );
 }
 
+function clearScrollLocks() {
+  document.documentElement.classList.remove("is-scroll-blocked");
+}
+
+function killAppScrollTriggers() {
+  ScrollTrigger.getAll().forEach((st) => st.kill());
+  ScrollTrigger.clearScrollMemory?.();
+}
+
 export function SiteMotionProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const nativeScroll = useNativeScroll(pathname);
+  const motionRootRef = useRef<HTMLDivElement>(null);
+  const revealCtxRef = useRef<gsap.Context | null>(null);
+
+  useEffect(() => {
+    revealCtxRef.current?.revert();
+    revealCtxRef.current = null;
+    killAppScrollTriggers();
+    clearScrollLocks();
+
+    if (nativeScroll) {
+      window.scrollTo(0, 0);
+    }
+  }, [pathname, nativeScroll]);
 
   useEffect(() => {
     const reduced = prefersReducedMotion();
@@ -70,6 +92,10 @@ export function SiteMotionProvider({ children }: { children: React.ReactNode }) 
     gsap.ticker.add(raf);
     gsap.ticker.lagSmoothing(0);
 
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => ScrollTrigger.refresh());
+    });
+
     return () => {
       document.removeEventListener(INTRO_EVENT, onIntro);
       gsap.ticker.remove(raf);
@@ -84,6 +110,9 @@ export function SiteMotionProvider({ children }: { children: React.ReactNode }) 
     if (prefersReducedMotion()) return;
     if (pathname === MARKETING_HOME) return;
 
+    const scope = motionRootRef.current ?? undefined;
+
+    revealCtxRef.current?.revert();
     const ctx = gsap.context(() => {
       const staggerGroups = gsap.utils.toArray<HTMLElement>("[data-stagger]");
       staggerGroups.forEach((group) => {
@@ -117,7 +146,9 @@ export function SiteMotionProvider({ children }: { children: React.ReactNode }) 
           },
         );
       });
-    });
+    }, scope);
+
+    revealCtxRef.current = ctx;
 
     const refresh = () => ScrollTrigger.refresh();
     requestAnimationFrame(refresh);
@@ -135,8 +166,11 @@ export function SiteMotionProvider({ children }: { children: React.ReactNode }) 
       window.removeEventListener("orientationchange", refresh);
       window.visualViewport?.removeEventListener("resize", onResize);
       ctx.revert();
+      if (revealCtxRef.current === ctx) {
+        revealCtxRef.current = null;
+      }
     };
   }, [pathname]);
 
-  return <>{children}</>;
+  return <div ref={motionRootRef}>{children}</div>;
 }

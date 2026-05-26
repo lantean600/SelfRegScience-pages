@@ -1,9 +1,15 @@
 "use client";
 
-import { CtdpCanvas } from "@/components/canvas/CtdpCanvas";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import { CtdpSettingsProvider } from "@/components/ctdp/CtdpSettingsContext";
 import { CtdpNodesProvider, useCtdpNodes } from "@/components/ctdp/CtdpNodesContext";
 import type { CtdpNodeRow } from "@/components/canvas/CtdpCanvas";
+
+const CtdpCanvas = dynamic(
+  () => import("@/components/canvas/CtdpCanvas").then((m) => ({ default: m.CtdpCanvas })),
+  { ssr: false },
+);
 
 function CtdpStatusBar() {
   const { nodes, completeness, seats } = useCtdpNodes();
@@ -57,6 +63,13 @@ export function CtdpClient({
   defaultAppointmentMin: number;
   defaultFocusMinutes: number;
 }) {
+  const [canvasReady, setCanvasReady] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setCanvasReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   return (
     <CtdpSettingsProvider
       serverDefaults={{ appointmentMinutes: defaultAppointmentMin, defaultFocusMinutes }}
@@ -68,7 +81,14 @@ export function CtdpClient({
       >
         <div className="space-y-4">
           <CtdpStatusBar />
-          <CtdpCanvas />
+          {canvasReady ? (
+            <CtdpCanvas />
+          ) : (
+            <div
+              className="ctdp-flow-wrap ctdp-flow-wrap--mobile relative w-full h-[min(700px,82vh)] overflow-hidden bg-panel animate-pulse"
+              aria-hidden
+            />
+          )}
         </div>
       </CtdpNodesProvider>
     </CtdpSettingsProvider>

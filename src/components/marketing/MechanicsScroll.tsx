@@ -42,22 +42,12 @@ function MechanicsPanelContent({
 
 export function MechanicsScroll() {
   return (
-    <section className="js-mechanics-pin hairline-t">
+    <section className="hairline-t">
       <div className="marketing-shell py-6 md:py-8">
         <p className="section-marker">Core Mechanics</p>
       </div>
 
-      {/* 移动端：纵向堆叠，无横向 pin */}
-      <div className="md:hidden mechanics-stack marketing-shell pb-8">
-        {panels.map((panel, index) => (
-          <article key={panel.id} className="mechanics-stack__panel data-reveal">
-            <MechanicsPanelContent panel={panel} index={index} />
-          </article>
-        ))}
-      </div>
-
-      {/* 桌面端：横向滚动 */}
-      <div className="hidden md:block mechanics-scroll-wrap">
+      <div className="js-mechanics-pin mechanics-scroll-wrap">
         <div className="mechanics-track js-mechanics-track">
           {panels.map((panel, index) => (
             <article key={panel.id} className="mechanics-panel">

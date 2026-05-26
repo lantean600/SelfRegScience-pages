@@ -3,11 +3,10 @@
 import { useEffect } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { INTRO_EVENT } from "@/components/motion/SiteIntro";
 import { prefersReducedMotion } from "@/lib/motion/prefersReducedMotion";
 
 gsap.registerPlugin(ScrollTrigger);
-
-const DESKTOP_MQ = "(min-width: 768px)";
 
 export function useScrollSpine(
   rootRef: React.RefObject<HTMLElement | null>,
@@ -17,11 +16,15 @@ export function useScrollSpine(
     const root = rootRef.current;
     if (!root || !enabled || prefersReducedMotion()) return;
 
-    const desktop = window.matchMedia(DESKTOP_MQ);
     let ctx: gsap.Context | undefined;
+    let mm: ReturnType<typeof ScrollTrigger.matchMedia> | undefined;
 
     const mount = () => {
       ctx?.revert();
+      ctx = undefined;
+      mm?.revert();
+      mm = undefined;
+
       ctx = gsap.context(() => {
         const about = root.querySelector<HTMLElement>(".js-about");
         if (about) {
@@ -39,46 +42,6 @@ export function useScrollSpine(
           );
         }
 
-        root.querySelectorAll<HTMLElement>(".mechanics-stack__panel").forEach((el) => {
-          gsap.fromTo(
-            el,
-            { opacity: 0, y: 24 },
-            {
-              opacity: 1,
-              y: 0,
-              duration: 0.6,
-              ease: "power3.out",
-              scrollTrigger: { trigger: el, start: "top 88%", once: true },
-            },
-          );
-        });
-
-        const track = root.querySelector<HTMLElement>(".js-mechanics-track");
-        const pin = root.querySelector<HTMLElement>(".js-mechanics-pin");
-        if (track && pin && desktop.matches) {
-          const panels = track.querySelectorAll<HTMLElement>(".mechanics-panel");
-          const getScrollDistance = () => {
-            const first = panels[0];
-            if (!first) return 0;
-            return Math.max(0, (panels.length - 1) * first.offsetWidth);
-          };
-
-          gsap.to(track, {
-            x: () => -getScrollDistance(),
-            ease: "none",
-            scrollTrigger: {
-              trigger: pin,
-              start: "top top",
-              end: () => `+=${getScrollDistance()}`,
-              pin: true,
-              pinSpacing: true,
-              scrub: 1,
-              anticipatePin: 1,
-              invalidateOnRefresh: true,
-            },
-          });
-        }
-
         const cta = root.querySelector<HTMLElement>(".js-cta");
         if (cta) {
           gsap.fromTo(
@@ -93,16 +56,83 @@ export function useScrollSpine(
             },
           );
         }
+
+        mm = ScrollTrigger.matchMedia({
+          "(min-width: 768px)": () => {
+            const pin = root.querySelector<HTMLElement>(".js-mechanics-pin");
+            const track = root.querySelector<HTMLElement>(".js-mechanics-track");
+            if (!pin || !track) return;
+
+            const panels = track.querySelectorAll<HTMLElement>(".mechanics-panel");
+            const syncPanelWidths = () => {
+              const w = pin.offsetWidth;
+              panels.forEach((panel) => {
+                panel.style.flexBasis = `${w}px`;
+                panel.style.width = `${w}px`;
+              });
+            };
+            syncPanelWidths();
+
+            const getScrollDistance = () => {
+              const first = panels[0];
+              if (!first) return 0;
+              return Math.max(0, (panels.length - 1) * first.offsetWidth);
+            };
+
+            gsap.to(track, {
+              x: () => -getScrollDistance(),
+              ease: "none",
+              scrollTrigger: {
+                trigger: pin,
+                start: "top top",
+                end: () => `+=${getScrollDistance()}`,
+                pin: true,
+                pinSpacing: true,
+                scrub: 0.5,
+                snap: 1 / (panels.length - 1),
+                invalidateOnRefresh: true,
+                onRefresh: syncPanelWidths,
+              },
+            });
+          },
+          "(max-width: 767px)": () => {
+            root.querySelectorAll<HTMLElement>(".mechanics-panel").forEach((el) => {
+              gsap.fromTo(
+                el,
+                { opacity: 0, y: 24 },
+                {
+                  opacity: 1,
+                  y: 0,
+                  duration: 0.6,
+                  ease: "power3.out",
+                  scrollTrigger: { trigger: el, start: "top 88%", once: true },
+                },
+              );
+            });
+          },
+        });
       }, root);
 
-      requestAnimationFrame(() => ScrollTrigger.refresh());
+      const refresh = () => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => ScrollTrigger.refresh());
+        });
+      };
+      refresh();
+    };
+
+    const onIntro = () => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => ScrollTrigger.refresh());
+      });
     };
 
     mount();
-    desktop.addEventListener("change", mount);
+    document.addEventListener(INTRO_EVENT, onIntro);
 
     return () => {
-      desktop.removeEventListener("change", mount);
+      document.removeEventListener(INTRO_EVENT, onIntro);
+      mm?.revert();
       ctx?.revert();
     };
   }, [rootRef, enabled]);

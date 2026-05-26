@@ -747,9 +747,9 @@
   }
 
   .mechanics-panel {
-    width: 100vw;
-    min-width: 100vw;
-    flex-shrink: 0;
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 100%;
     box-sizing: border-box;
     padding-block: clamp(3rem, 10vh, 5rem);
     border-top: 1px solid var(--color-rule);
@@ -762,19 +762,38 @@
     padding-inline: var(--spacing-page-x);
   }
 
-  .mechanics-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+  @media (max-width: 767px) {
+    .mechanics-track {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .mechanics-panel {
+      flex: none;
+      width: 100%;
+      min-width: 0;
+      padding-block: clamp(2rem, 6vh, 3rem);
+    }
+
+    .mechanics-panel:first-child {
+      border-top: none;
+    }
   }
 
-  .mechanics-stack__panel {
-    padding-block: clamp(2rem, 6vh, 3rem);
-    border-top: 1px solid var(--color-rule);
-  }
+  @media (min-width: 768px) {
+    .mechanics-scroll-wrap {
+      width: 100%;
+    }
 
-  .mechanics-stack__panel:first-child {
-    border-top: none;
+    .mechanics-track {
+      flex-direction: row;
+    }
+
+    .mechanics-panel {
+      flex: 0 0 100%;
+      width: 100%;
+      min-width: 100%;
+    }
   }
 
   @media (max-width: 767px) {

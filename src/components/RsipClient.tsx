@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { RsipCanvas } from "@/components/canvas/RsipCanvas";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Field";
@@ -18,12 +18,23 @@ import {
 
 type Template = { id: string; slug: string; title: string; description: string | null };
 
+const RsipCanvas = dynamic(
+  () => import("@/components/canvas/RsipCanvas").then((m) => ({ default: m.RsipCanvas })),
+  { ssr: false },
+);
+
 function RsipClientInner({ templates }: { templates: Template[] }) {
   const { policies, groups, habits, mutate, addPolicy, addGroup, refetchRsip } = useRsipData();
+  const [canvasReady, setCanvasReady] = useState(false);
   const [steadyState, setSteadyState] = useState("沙发放纵");
   const [backtrack, setBacktrack] = useState("躺沙发|带手机上沙发|拿起手机");
   const [groupName, setGroupName] = useState("");
   const [groupPolicies, setGroupPolicies] = useState<string[]>([]);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setCanvasReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   async function cloneTemplate(templateId: string) {
     const data = await mutate<RsipPolicy>({
@@ -96,7 +107,14 @@ function RsipClientInner({ templates }: { templates: Template[] }) {
           </div>
         </dl>
         <div className="mt-6 ctdp-flow-wrap ctdp-flow-wrap--mobile min-h-0">
-          <RsipCanvas />
+          {canvasReady ? (
+            <RsipCanvas />
+          ) : (
+            <div
+              className="relative w-full h-[min(480px,70vh)] overflow-hidden bg-panel animate-pulse"
+              aria-hidden
+            />
+          )}
         </div>
       </section>
 
