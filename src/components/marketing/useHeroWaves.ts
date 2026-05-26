@@ -14,8 +14,6 @@ type WavePoint = {
 
 export type HeroWavesOptions = {
   interactiveMode?: "afterIntro" | "immediate";
-  /** 0 = dot snaps to pointer; higher = more lag */
-  dotSmoothing?: number;
   /** smoothing for wave deformation anchor */
   waveSmoothing?: number;
 };
@@ -25,11 +23,7 @@ export function useHeroWaves(
   svgRef: React.RefObject<SVGSVGElement | null>,
   options: HeroWavesOptions = {},
 ) {
-  const {
-    interactiveMode = "afterIntro",
-    dotSmoothing = 0,
-    waveSmoothing = 0.1,
-  } = options;
+  const { interactiveMode = "afterIntro", waveSmoothing = 0.1 } = options;
 
   const linesRef = useRef<WavePoint[][]>([]);
   const pathsRef = useRef<SVGPathElement[]>([]);
@@ -46,8 +40,6 @@ export function useHeroWaves(
     ly: 0,
     sx: 0,
     sy: 0,
-    dx: 0,
-    dy: 0,
     v: 0,
     vs: 0,
     a: 0,
@@ -179,11 +171,6 @@ export function useHeroWaves(
       });
     }
 
-    function setDotPosition(x: number, y: number) {
-      container!.style.setProperty("--wave-cursor-x", `${x}px`);
-      container!.style.setProperty("--wave-cursor-y", `${y}px`);
-    }
-
     function enableInteractive() {
       interactiveRef.current = true;
       container!.classList.add("is-interactive");
@@ -206,11 +193,6 @@ export function useHeroWaves(
       mouse.ly = mouse.y;
       mouse.a = Math.atan2(dy, dx);
 
-      const dotLerp = dotSmoothing <= 0 ? 1 : dotSmoothing;
-      mouse.dx += (mouse.x - mouse.dx) * dotLerp;
-      mouse.dy += (mouse.y - mouse.dy) * dotLerp;
-      setDotPosition(mouse.dx, mouse.dy);
-
       movePoints(time);
       drawLines();
       rafRef.current = requestAnimationFrame(tick);
@@ -226,20 +208,12 @@ export function useHeroWaves(
         mouse.sy = mouse.y;
         mouse.lx = mouse.x;
         mouse.ly = mouse.y;
-        mouse.dx = mouse.x;
-        mouse.dy = mouse.y;
         mouse.set = true;
-        setDotPosition(mouse.x, mouse.y);
       }
-      container!.classList.remove("is-pointer-out");
     }
 
     function onPointerMove(e: PointerEvent) {
       updateMouse(e.clientX, e.clientY);
-    }
-
-    function onPointerLeave() {
-      container!.classList.add("is-pointer-out");
     }
 
     function onTouchMove(e: TouchEvent) {
@@ -286,7 +260,6 @@ export function useHeroWaves(
     ro.observe(container);
 
     container.addEventListener("pointermove", onPointerMove, { passive: true });
-    container.addEventListener("pointerleave", onPointerLeave);
     container.addEventListener("touchmove", onTouchMove, { passive: true });
 
     const onScroll = () => setSize();
@@ -326,14 +299,13 @@ export function useHeroWaves(
       window.removeEventListener("scroll", onScroll);
       document.removeEventListener("visibilitychange", onVisibility);
       container.removeEventListener("pointermove", onPointerMove);
-      container.removeEventListener("pointerleave", onPointerLeave);
       container.removeEventListener("touchmove", onTouchMove);
       document.removeEventListener(INTRO_EVENT, onIntro);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      container.classList.remove("is-interactive", "is-pointer-out");
+      container.classList.remove("is-interactive");
       pathsRef.current.forEach((p) => p.remove());
       pathsRef.current = [];
       linesRef.current = [];
     };
-  }, [containerRef, svgRef, interactiveMode, dotSmoothing, waveSmoothing]);
+  }, [containerRef, svgRef, interactiveMode, waveSmoothing]);
 }

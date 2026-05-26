@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Lenis from "lenis";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { INTRO_EVENT } from "@/components/motion/SiteIntro";
 import { prefersNativeScroll } from "@/lib/motion/device-motion";
 import { prefersReducedMotion } from "@/lib/motion/prefersReducedMotion";
 
@@ -37,8 +38,30 @@ export function SiteMotionProvider({ children }: { children: React.ReactNode }) 
       wheelMultiplier: 1,
     });
 
+    ScrollTrigger.scrollerProxy(document.documentElement, {
+      scrollTop(value) {
+        if (arguments.length) {
+          lenis.scrollTo(value, { immediate: true });
+        }
+        return lenis.scroll;
+      },
+      getBoundingClientRect() {
+        return {
+          top: 0,
+          left: 0,
+          width: window.innerWidth,
+          height: window.innerHeight,
+        };
+      },
+    });
+
     const onScroll = () => ScrollTrigger.update();
     lenis.on("scroll", onScroll);
+
+    const onIntro = () => {
+      requestAnimationFrame(() => ScrollTrigger.refresh());
+    };
+    document.addEventListener(INTRO_EVENT, onIntro);
 
     const raf = (time: number) => {
       lenis.raf(time * 1000);
@@ -48,9 +71,11 @@ export function SiteMotionProvider({ children }: { children: React.ReactNode }) 
     gsap.ticker.lagSmoothing(0);
 
     return () => {
+      document.removeEventListener(INTRO_EVENT, onIntro);
       gsap.ticker.remove(raf);
       lenis.off("scroll", onScroll);
       lenis.destroy();
+      ScrollTrigger.scrollerProxy(document.documentElement, {});
       delete document.documentElement.dataset.motion;
     };
   }, [nativeScroll]);

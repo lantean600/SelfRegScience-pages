@@ -21,7 +21,6 @@ export function HeroWavesInteractive({
 
   useHeroWaves(stageRef, svgRef, {
     interactiveMode,
-    dotSmoothing: 0,
     waveSmoothing: 0.12,
   });
 

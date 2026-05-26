@@ -25,7 +25,7 @@ export function MarketingHome() {
 
   const spineRef = useRef<HTMLDivElement>(null);
   const handleIntroComplete = useCallback(() => setIntroDone(true), []);
-  useScrollSpine(spineRef);
+  useScrollSpine(spineRef, introDone);
 
   return (
     <>

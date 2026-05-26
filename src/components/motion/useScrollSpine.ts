@@ -9,10 +9,13 @@ gsap.registerPlugin(ScrollTrigger);
 
 const DESKTOP_MQ = "(min-width: 768px)";
 
-export function useScrollSpine(rootRef: React.RefObject<HTMLElement | null>) {
+export function useScrollSpine(
+  rootRef: React.RefObject<HTMLElement | null>,
+  enabled = true,
+) {
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || prefersReducedMotion()) return;
+    if (!root || !enabled || prefersReducedMotion()) return;
 
     const desktop = window.matchMedia(DESKTOP_MQ);
     let ctx: gsap.Context | undefined;
@@ -68,7 +71,9 @@ export function useScrollSpine(rootRef: React.RefObject<HTMLElement | null>) {
               start: "top top",
               end: () => `+=${getScrollDistance()}`,
               pin: true,
+              pinSpacing: true,
               scrub: 1,
+              anticipatePin: 1,
               invalidateOnRefresh: true,
             },
           });
@@ -100,5 +105,5 @@ export function useScrollSpine(rootRef: React.RefObject<HTMLElement | null>) {
       desktop.removeEventListener("change", mount);
       ctx?.revert();
     };
-  }, [rootRef]);
+  }, [rootRef, enabled]);
 }
