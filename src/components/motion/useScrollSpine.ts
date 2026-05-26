@@ -8,6 +8,15 @@ import { prefersReducedMotion } from "@/lib/motion/prefersReducedMotion";
 
 gsap.registerPlugin(ScrollTrigger);
 
+/** 纵向滚动量相对轨道全长的比例（越小屏间切换越快） */
+const MECHANICS_SCROLL_RATIO = 0.6;
+
+function refreshScrollTriggers() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => ScrollTrigger.refresh());
+  });
+}
+
 export function useScrollSpine(
   rootRef: React.RefObject<HTMLElement | null>,
   enabled = true,
@@ -61,9 +70,14 @@ export function useScrollSpine(
             if (!pin || !track) return;
 
             const panels = track.querySelectorAll<HTMLElement>(".mechanics-panel");
+            const panelCount = panels.length;
+            const snapStep = panelCount > 1 ? 1 / (panelCount - 1) : 1;
+
             const syncPanelWidths = () => {
               const w = pin.offsetWidth;
+              track.style.width = `${panelCount * w}px`;
               panels.forEach((panel) => {
+                panel.style.flex = `0 0 ${w}px`;
                 panel.style.flexBasis = `${w}px`;
                 panel.style.width = `${w}px`;
               });
@@ -73,7 +87,7 @@ export function useScrollSpine(
             const getScrollDistance = () => {
               const first = panels[0];
               if (!first) return 0;
-              return Math.max(0, (panels.length - 1) * first.offsetWidth);
+              return Math.max(0, (panelCount - 1) * first.offsetWidth);
             };
 
             gsap.to(track, {
@@ -82,13 +96,18 @@ export function useScrollSpine(
               scrollTrigger: {
                 trigger: pin,
                 start: "top top",
-                end: () => `+=${getScrollDistance()}`,
+                end: () => `+=${getScrollDistance() * MECHANICS_SCROLL_RATIO}`,
                 pin: true,
                 pinSpacing: true,
-                scrub: 0.5,
-                snap: 1 / (panels.length - 1),
+                scrub: 0.35,
+                snap: {
+                  snapTo: (value: number) => Math.round(value / snapStep) * snapStep,
+                  duration: { min: 0.15, max: 0.35 },
+                },
                 invalidateOnRefresh: true,
                 onRefresh: syncPanelWidths,
+                onLeave: refreshScrollTriggers,
+                onLeaveBack: refreshScrollTriggers,
               },
             });
           },
@@ -110,18 +129,11 @@ export function useScrollSpine(
         });
       }, root);
 
-      const refresh = () => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => ScrollTrigger.refresh());
-        });
-      };
-      refresh();
+      refreshScrollTriggers();
     };
 
     const onIntro = () => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => ScrollTrigger.refresh());
-      });
+      refreshScrollTriggers();
     };
 
     mount();

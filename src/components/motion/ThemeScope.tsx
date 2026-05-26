@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
-const APP_PREFIXES = ["/dashboard", "/ctdp", "/rsip", "/review"];
+const APP_PREFIXES = ["/dashboard", "/ctdp", "/rsip", "/review", "/guide"];
 
 export function ThemeScope({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

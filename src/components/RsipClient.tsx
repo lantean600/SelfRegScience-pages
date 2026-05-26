@@ -32,8 +32,15 @@ function RsipClientInner({ templates }: { templates: Template[] }) {
   const [groupPolicies, setGroupPolicies] = useState<string[]>([]);
 
   useEffect(() => {
-    const id = requestAnimationFrame(() => setCanvasReady(true));
-    return () => cancelAnimationFrame(id);
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setCanvasReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+      setCanvasReady(false);
+    };
   }, []);
 
   async function cloneTemplate(templateId: string) {

@@ -1,35 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  Background,
-  Controls,
-  type Node,
-  type Edge,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
+import type { Node, Edge } from "@xyflow/react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
-import { canvasNodeTypes } from "@/components/canvas/nodeTypes";
-import { canvasEdgeTypes } from "@/components/canvas/edgeTypes";
-import { CtdpSettingsProvider } from "@/components/ctdp/CtdpSettingsContext";
-import { CtdpZoomProvider } from "@/components/ctdp/CtdpZoomContext";
 import { theoryGlossary } from "@/lib/theory-glossary";
+import type { GuideStep } from "@/components/guide/GuideFlow";
+
+const GuideFlow = dynamic(
+  () => import("@/components/guide/GuideFlow").then((m) => ({ default: m.GuideFlow })),
+  { ssr: false },
+);
 
 const ZHIHU_SOURCE =
   "https://www.zhihu.com/question/19888447/answer/1930799480401293785";
-
-type GuideStep = {
-  title: string;
-  caption: string;
-  detail: string;
-  highlight: string[];
-  nodes: Node[];
-  edges: Edge[];
-};
 
 function demoNode(
   id: string,
@@ -301,58 +287,22 @@ const rsipSteps: GuideStep[] = [
 
 type Track = "ctdp" | "rsip";
 
-function GuideFlow({ steps, step }: { steps: GuideStep[]; step: number }) {
-  const current = steps[step];
-  const nodes = useMemo(
-    () =>
-      current.nodes.map((n) => ({
-        ...n,
-        data: {
-          ...n.data,
-          highlighted: current.highlight.includes(n.id),
-        },
-      })),
-    [current],
-  );
-
-  const usesCtdp = current.nodes.some((n) => n.type === "ctdpNode");
-
-  const flow = (
-    <ReactFlowProvider>
-      <ReactFlow
-        nodes={nodes}
-        edges={current.edges}
-        nodeTypes={canvasNodeTypes}
-        edgeTypes={canvasEdgeTypes}
-        fitView
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        panOnDrag={false}
-        zoomOnScroll={false}
-      >
-        <Background gap={16} />
-        <Controls showInteractive={false} />
-      </ReactFlow>
-    </ReactFlowProvider>
-  );
-
-  return (
-    <div className="h-[340px] ctdp-flow-wrap">
-      {usesCtdp ? (
-        <CtdpSettingsProvider>
-          <CtdpZoomProvider labelZoomThreshold={0.5}>{flow}</CtdpZoomProvider>
-        </CtdpSettingsProvider>
-      ) : (
-        flow
-      )}
-    </div>
-  );
-}
-
 export function GuideClient({ showHeader = true }: { showHeader?: boolean }) {
+  const [guideReady, setGuideReady] = useState(false);
   const [track, setTrack] = useState<Track>("ctdp");
   const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setGuideReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+      setGuideReady(false);
+    };
+  }, []);
   const steps = track === "ctdp" ? ctdpSteps : rsipSteps;
   const current = steps[step];
 
@@ -481,7 +431,14 @@ export function GuideClient({ showHeader = true }: { showHeader?: boolean }) {
           </div>
 
           <div>
-            <GuideFlow steps={steps} step={step} />
+            {guideReady ? (
+              <GuideFlow steps={steps} step={step} />
+            ) : (
+              <div
+                className="h-[340px] ctdp-flow-wrap animate-pulse bg-panel"
+                aria-hidden
+              />
+            )}
           </div>
         </div>
       </section>

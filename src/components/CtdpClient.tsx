@@ -66,8 +66,15 @@ export function CtdpClient({
   const [canvasReady, setCanvasReady] = useState(false);
 
   useEffect(() => {
-    const id = requestAnimationFrame(() => setCanvasReady(true));
-    return () => cancelAnimationFrame(id);
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setCanvasReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+      setCanvasReady(false);
+    };
   }, []);
 
   return (

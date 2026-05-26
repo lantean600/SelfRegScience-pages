@@ -735,6 +735,10 @@
     line-height: 0.9;
   }
 
+  .js-mechanics-pin {
+    min-height: 100dvh;
+  }
+
   .mechanics-scroll-wrap {
     width: 100%;
     overflow: hidden;
@@ -790,9 +794,8 @@
     }
 
     .mechanics-panel {
-      flex: 0 0 100%;
-      width: 100%;
-      min-width: 100%;
+      flex: 0 0 auto;
+      min-width: 0;
     }
   }
 
