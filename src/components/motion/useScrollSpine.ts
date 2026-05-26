@@ -54,7 +54,7 @@ export function useScrollSpine(
           );
         }
 
-        mm = ScrollTrigger.matchMedia({
+        ScrollTrigger.matchMedia({
           "(min-width: 768px)": () => {
             const pin = root.querySelector<HTMLElement>(".js-mechanics-pin");
             const track = root.querySelector<HTMLElement>(".js-mechanics-track");
@@ -129,7 +129,6 @@ export function useScrollSpine(
 
     return () => {
       document.removeEventListener(INTRO_EVENT, onIntro);
-      mm?.revert();
       ctx?.revert();
     };
   }, [rootRef, enabled]);
