@@ -25,7 +25,7 @@ export const DEFAULT_CTDP_UI_SETTINGS: CtdpUiSettings = {
   edgeColor: CTDP_NODE_DEFAULTS.edge,
   nodeSize: 44,
   labelZoomThreshold: 0.78,
-  forceStrength: 80,
+  forceStrength: 55,
   appointmentMinutes: 15,
   defaultFocusMinutes: 60,
 };

@@ -30,6 +30,7 @@ type SavedDragForces = {
   centerStrength: number;
   linkStrength: number;
   chargeDistanceMax: number;
+  chargeStrength: number;
 };
 
 const savedDragForces = new WeakMap<
@@ -69,15 +70,19 @@ export function setDragForceMode(
     if (!savedDragForces.has(sim)) {
       const centerStr = center.strength();
       const linkStr = link.strength();
+      const chargeStr = charge.strength();
       savedDragForces.set(sim, {
         centerStrength: typeof centerStr === "number" ? centerStr : 0.06,
         linkStrength: typeof linkStr === "number" ? linkStr : 0.28,
         chargeDistanceMax: charge.distanceMax() ?? 600,
+        chargeStrength: typeof chargeStr === "number" ? chargeStr : -200,
       });
     }
+    const saved = savedDragForces.get(sim)!;
     center.strength(0);
     link.strength(0.62);
     charge.distanceMax(DRAG_CHARGE_DISTANCE_MAX);
+    charge.strength(saved.chargeStrength * 0.75);
     sim.velocityDecay(0.35);
   } else {
     const saved = savedDragForces.get(sim);
@@ -85,6 +90,7 @@ export function setDragForceMode(
       center.strength(saved.centerStrength);
       link.strength(saved.linkStrength);
       charge.distanceMax(saved.chargeDistanceMax);
+      charge.strength(saved.chargeStrength);
       savedDragForces.delete(sim);
     }
     sim.velocityDecay(0.4);
@@ -105,7 +111,8 @@ function buildForces(
   height: number,
   opts: ForceLayoutOptions,
 ) {
-  const charge = -(opts.chargeStrength * 5 + simNodes.length * 8);
+  // 斥力：系数较温和，避免节点过度弹开
+  const charge = -(opts.chargeStrength * 2.5 + simNodes.length * 4);
   const r = simNodes[0]?.radius ?? 22;
 
   return forceSimulation(simNodes)
