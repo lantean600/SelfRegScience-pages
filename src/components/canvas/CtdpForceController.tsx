@@ -1,15 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useReactFlow, type Node } from "@xyflow/react";
 import { isPendingCtdpId } from "@/components/ctdp/ctdp-create-anchor";
 import {
+  isCtdpDragging,
+  markCtdpPendingRelayout,
+  setCtdpDragging,
+} from "@/lib/ctdp-drag-state";
+import {
+  beginNodeDrag,
+  createSimulationDriver,
+  endNodeDrag,
+  moveDraggedNode,
   runForceToConvergence,
+  syncSimPositionsFromRf,
   tickForceSimulationAsync,
-  heatSimForDrag,
-  coolSimAfterDrag,
   type ForceLayoutOptions,
   type ForceNodeDatum,
+  type SimDriver,
 } from "@/lib/ctdp-force-layout";
 
 const CANVAS_W = 1000;
@@ -89,12 +98,15 @@ export function CtdpForceController({
 }) {
   const { getNodes, setNodes } = useReactFlow();
   const simRef = useRef<ReturnType<typeof runForceToConvergence>["sim"] | null>(null);
+  const driverRef = useRef<SimDriver | null>(null);
+  const pinnedIdRef = useRef<string | null>(null);
   const metaRef = useRef(layoutMeta);
   const prevIdsRef = useRef<Set<string>>(new Set());
   const prevStructureRef = useRef("");
   const prevSettingsRef = useRef("");
   const layoutGenRef = useRef(0);
   const mountedRef = useRef(false);
+  const [relayoutToken, setRelayoutToken] = useState(0);
 
   metaRef.current = layoutMeta;
 
@@ -102,8 +114,34 @@ export function CtdpForceController({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      driverRef.current?.stop();
+      driverRef.current = null;
+      simRef.current?.stop();
+      simRef.current = null;
+      setCtdpDragging(false);
     };
   }, []);
+
+  const defaultRadius = useCallback(() => {
+    return metaRef.current.radii.values().next().value ?? 22;
+  }, []);
+
+  const onDriverTick = useCallback(
+    (positions: Map<string, { x: number; y: number }>) => {
+      if (!mountedRef.current) return;
+      const { radii } = metaRef.current;
+      applyPositions(setNodes, positions, radii, defaultRadius());
+    },
+    [setNodes, defaultRadius],
+  );
+
+  const attachDriver = useCallback(
+    (sim: NonNullable<typeof simRef.current>) => {
+      driverRef.current?.stop();
+      driverRef.current = createSimulationDriver(sim, onDriverTick);
+    },
+    [onDriverTick],
+  );
 
   const safeApplyPositions = useCallback(
     (
@@ -118,7 +156,41 @@ export function CtdpForceController({
     [setNodes],
   );
 
+  const bootstrapSim = useCallback(() => {
+    const rfNodes = getNodes();
+    if (rfNodes.length === 0) return null;
+
+    const { radii, links, forceOptions } = metaRef.current;
+    const defaultR = defaultRadius();
+    const simNodes = buildSimNodes(rfNodes, radii, defaultR, new Set(), new Set());
+    const { sim } = runForceToConvergence({
+      nodes: simNodes,
+      links,
+      width: CANVAS_W,
+      height: CANVAS_H,
+      forceOptions,
+      iterations: 0,
+    });
+    releaseFixed(sim.nodes());
+    simRef.current = sim;
+    attachDriver(sim);
+    return sim;
+  }, [getNodes, attachDriver, defaultRadius]);
+
   useEffect(() => {
+    const onPendingRelayout = () => {
+      setRelayoutToken((t) => t + 1);
+    };
+    window.addEventListener("ctdp-force-pending-relayout", onPendingRelayout);
+    return () => window.removeEventListener("ctdp-force-pending-relayout", onPendingRelayout);
+  }, []);
+
+  useEffect(() => {
+    if (isCtdpDragging()) {
+      markCtdpPendingRelayout();
+      return;
+    }
+
     const gen = ++layoutGenRef.current;
     let cancelled = false;
 
@@ -126,13 +198,15 @@ export function CtdpForceController({
       const rfNodes = getNodes();
       if (rfNodes.length === 0) {
         prevIdsRef.current = new Set();
+        driverRef.current?.stop();
+        driverRef.current = null;
         simRef.current?.stop();
         simRef.current = null;
         return;
       }
 
       const { radii, links, forceOptions } = metaRef.current;
-      const defaultR = radii.values().next().value ?? 22;
+      const defaultR = defaultRadius();
       const currentIds = new Set(rfNodes.map((n) => n.id));
       const prevIds = prevIdsRef.current;
 
@@ -145,6 +219,8 @@ export function CtdpForceController({
       const settingsChanged =
         prevSettingsRef.current !== "" && settingsKey !== prevSettingsRef.current;
 
+      driverRef.current?.stop();
+      driverRef.current = null;
       simRef.current?.stop();
       simRef.current = null;
 
@@ -176,6 +252,7 @@ export function CtdpForceController({
         if (isStale()) return;
         safeApplyPositions(positions, radii, defaultR);
         simRef.current = sim;
+        attachDriver(sim);
       } else if (onlyAdditions && !settingsChanged) {
         const newIdSet = new Set(added);
         const fixedIds = new Set([...currentIds].filter((id) => !newIdSet.has(id)));
@@ -198,6 +275,7 @@ export function CtdpForceController({
         });
         if (isStale()) return;
         simRef.current = sim;
+        attachDriver(sim);
       } else if (removed.length > 0 && added.length === 0 && !settingsChanged) {
         const fixedIds = new Set(currentIds);
         const simNodes = buildSimNodes(rfNodes, radii, defaultR, fixedIds, new Set());
@@ -213,6 +291,7 @@ export function CtdpForceController({
         await tickForceSimulationAsync(sim, 24, { chunkSize: 8 });
         if (isStale()) return;
         simRef.current = sim;
+        attachDriver(sim);
       } else if (structureChanged && added.length === 0 && removed.length === 0) {
         const simNodes = buildSimNodes(rfNodes, radii, defaultR, new Set(), new Set());
         const { sim } = runForceToConvergence({
@@ -233,6 +312,7 @@ export function CtdpForceController({
         if (isStale()) return;
         safeApplyPositions(positions, radii, defaultR);
         simRef.current = sim;
+        attachDriver(sim);
       } else if (settingsChanged && added.length === 0 && removed.length === 0) {
         const fixedIds = new Set(currentIds);
         const simNodes = buildSimNodes(rfNodes, radii, defaultR, fixedIds, new Set());
@@ -248,6 +328,7 @@ export function CtdpForceController({
         await tickForceSimulationAsync(sim, 32, { chunkSize: 8 });
         if (isStale()) return;
         simRef.current = sim;
+        attachDriver(sim);
       } else {
         const hasPosition = (n: Node) =>
           prevIds.has(n.id) &&
@@ -279,6 +360,7 @@ export function CtdpForceController({
         if (isStale()) return;
         safeApplyPositions(positions, radii, defaultR);
         simRef.current = sim;
+        attachDriver(sim);
       }
 
       prevIdsRef.current = currentIds;
@@ -290,67 +372,69 @@ export function CtdpForceController({
 
     return () => {
       cancelled = true;
-      simRef.current?.stop();
-      simRef.current = null;
     };
-  }, [structureKey, settingsKey, getNodes, setNodes, safeApplyPositions]);
+  }, [
+    structureKey,
+    settingsKey,
+    relayoutToken,
+    getNodes,
+    setNodes,
+    safeApplyPositions,
+    attachDriver,
+    defaultRadius,
+  ]);
 
   useEffect(() => {
     function onDragStart(e: Event) {
       const { id } = (e as CustomEvent<{ id: string }>).detail;
-      const sim = simRef.current;
+      setCtdpDragging(true);
+      pinnedIdRef.current = id;
+
+      let sim = simRef.current;
+      if (!sim) {
+        sim = bootstrapSim();
+      }
       if (!sim) return;
 
+      if (!driverRef.current) {
+        attachDriver(sim);
+      }
+
       const rfNodes = getNodes();
-      for (const rfNode of rfNodes) {
-        const datum = sim.nodes().find((d) => d.id === rfNode.id);
-        if (datum) {
-          const radius = metaRef.current.radii.get(rfNode.id) ?? 22;
-          datum.x = rfNode.position.x + radius;
-          datum.y = rfNode.position.y + radius;
-          datum.vx = 0;
-          datum.vy = 0;
-        }
-      }
+      const { radii } = metaRef.current;
+      const defaultR = defaultRadius();
+      syncSimPositionsFromRf(
+        sim,
+        rfNodes.map((n) => ({
+          id: n.id,
+          x: n.position.x,
+          y: n.position.y,
+          radius: radii.get(n.id) ?? defaultR,
+        })),
+      );
 
-      const datum = sim.nodes().find((d) => d.id === id);
-      if (datum) {
-        datum.fx = datum.x;
-        datum.fy = datum.y;
-      }
-
-      heatSimForDrag(sim, (positions) => {
-        if (!mountedRef.current) return;
-        safeApplyPositions(
-          positions,
-          metaRef.current.radii,
-          metaRef.current.radii.values().next().value ?? 22,
-        );
-      });
+      const driver = driverRef.current;
+      if (driver) beginNodeDrag(sim, driver, id);
     }
 
     function onDrag(e: Event) {
       const { id, x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail;
       const sim = simRef.current;
       if (!sim) return;
-      const datum = sim.nodes().find((d) => d.id === id);
-      if (datum) {
-        const radius = metaRef.current.radii.get(id) ?? 22;
-        datum.fx = x + radius;
-        datum.fy = y + radius;
-      }
+      const radius = metaRef.current.radii.get(id) ?? defaultRadius();
+      moveDraggedNode(sim, id, x + radius, y + radius);
+      driverRef.current?.start();
     }
 
     function onDragStop(e: Event) {
       const { id } = (e as CustomEvent<{ id: string }>).detail;
       const sim = simRef.current;
-      if (!sim) return;
-      const datum = sim.nodes().find((d) => d.id === id);
-      if (datum) {
-        datum.fx = null;
-        datum.fy = null;
+      const driver = driverRef.current;
+      if (sim && driver) {
+        endNodeDrag(sim, driver, id);
       }
-      coolSimAfterDrag(sim);
+      pinnedIdRef.current = null;
+      setCtdpDragging(false);
     }
 
     window.addEventListener("ctdp-force-drag-start", onDragStart);
@@ -361,7 +445,7 @@ export function CtdpForceController({
       window.removeEventListener("ctdp-force-drag", onDrag);
       window.removeEventListener("ctdp-force-drag-stop", onDragStop);
     };
-  }, [getNodes, setNodes, safeApplyPositions]);
+  }, [getNodes, bootstrapSim, attachDriver, defaultRadius]);
 
   return null;
 }
