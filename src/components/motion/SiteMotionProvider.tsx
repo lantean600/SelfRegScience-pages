@@ -40,7 +40,7 @@ export function SiteMotionProvider({ children }: { children: React.ReactNode }) 
 
     ScrollTrigger.scrollerProxy(document.documentElement, {
       scrollTop(value) {
-        if (arguments.length) {
+        if (arguments.length && typeof value === "number") {
           lenis.scrollTo(value, { immediate: true });
         }
         return lenis.scroll;
