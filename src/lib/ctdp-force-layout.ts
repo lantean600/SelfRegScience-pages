@@ -21,9 +21,82 @@ export type ForceLayoutOptions = {
   chargeStrength: number;
 };
 
-const DRAG_ALPHA_TARGET = 0.45;
+const DRAG_ALPHA_TARGET = 0.5;
 const SETTLE_ALPHA_TARGET = 0.12;
 const SETTLE_ALPHA_STOP = 0.02;
+const DRAG_CHARGE_DISTANCE_MAX = 5000;
+
+type SavedDragForces = {
+  centerStrength: number;
+  linkStrength: number;
+  chargeDistanceMax: number;
+};
+
+const savedDragForces = new WeakMap<
+  Simulation<ForceNodeDatum, ForceLinkDatum>,
+  SavedDragForces
+>();
+
+function getLinkForce(sim: Simulation<ForceNodeDatum, ForceLinkDatum>) {
+  return sim.force("link") as ReturnType<
+    typeof forceLink<ForceNodeDatum, ForceLinkDatum>
+  > | null;
+}
+
+function getChargeForce(sim: Simulation<ForceNodeDatum, ForceLinkDatum>) {
+  return sim.force("charge") as ReturnType<
+    typeof forceManyBody<ForceNodeDatum>
+  > | null;
+}
+
+function getCenterForce(sim: Simulation<ForceNodeDatum, ForceLinkDatum>) {
+  return sim.force("center") as ReturnType<
+    typeof forceCenter<ForceNodeDatum>
+  > | null;
+}
+
+/** 拖动时关闭向心、加强连线，避免邻居被中心力锁死 */
+export function setDragForceMode(
+  sim: Simulation<ForceNodeDatum, ForceLinkDatum>,
+  active: boolean,
+) {
+  const link = getLinkForce(sim);
+  const charge = getChargeForce(sim);
+  const center = getCenterForce(sim);
+  if (!link || !charge || !center) return;
+
+  if (active) {
+    if (!savedDragForces.has(sim)) {
+      const centerStr = center.strength();
+      const linkStr = link.strength();
+      savedDragForces.set(sim, {
+        centerStrength: typeof centerStr === "number" ? centerStr : 0.06,
+        linkStrength: typeof linkStr === "number" ? linkStr : 0.28,
+        chargeDistanceMax: charge.distanceMax() ?? 600,
+      });
+    }
+    center.strength(0);
+    link.strength(0.62);
+    charge.distanceMax(DRAG_CHARGE_DISTANCE_MAX);
+    sim.velocityDecay(0.35);
+  } else {
+    const saved = savedDragForces.get(sim);
+    if (saved) {
+      center.strength(saved.centerStrength);
+      link.strength(saved.linkStrength);
+      charge.distanceMax(saved.chargeDistanceMax);
+      savedDragForces.delete(sim);
+    }
+    sim.velocityDecay(0.4);
+  }
+}
+
+function reheatSimForDrag(sim: Simulation<ForceNodeDatum, ForceLinkDatum>) {
+  sim.alphaTarget(DRAG_ALPHA_TARGET);
+  if (sim.alpha() < DRAG_ALPHA_TARGET * 0.75) {
+    sim.alpha(DRAG_ALPHA_TARGET).restart();
+  }
+}
 
 function buildForces(
   simNodes: ForceNodeDatum[],
@@ -228,17 +301,22 @@ export function beginNodeDrag(
   driver: SimDriver,
   nodeId: string,
 ) {
+  setDragForceMode(sim, true);
   const datum = sim.nodes().find((d) => d.id === nodeId);
   if (datum && datum.x != null && datum.y != null) {
     datum.fx = datum.x;
     datum.fy = datum.y;
+    datum.vx = 0;
+    datum.vy = 0;
   }
   driver.setDragActive(true);
-  driver.setAlphaTarget(DRAG_ALPHA_TARGET);
+  reheatSimForDrag(sim);
+  driver.start();
 }
 
 export function moveDraggedNode(
   sim: Simulation<ForceNodeDatum, ForceLinkDatum>,
+  driver: SimDriver | null,
   nodeId: string,
   centerX: number,
   centerY: number,
@@ -247,6 +325,10 @@ export function moveDraggedNode(
   if (!datum) return;
   datum.fx = centerX;
   datum.fy = centerY;
+  datum.vx = 0;
+  datum.vy = 0;
+  reheatSimForDrag(sim);
+  driver?.start();
 }
 
 export function endNodeDrag(
@@ -259,6 +341,7 @@ export function endNodeDrag(
     datum.fx = null;
     datum.fy = null;
   }
+  setDragForceMode(sim, false);
   driver.setDragActive(false);
   driver.setAlphaTarget(SETTLE_ALPHA_TARGET);
 }

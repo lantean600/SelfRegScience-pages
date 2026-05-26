@@ -129,8 +129,20 @@ export function CtdpForceController({
   const onDriverTick = useCallback(
     (positions: Map<string, { x: number; y: number }>) => {
       if (!mountedRef.current) return;
+      const pinned = pinnedIdRef.current;
       const { radii } = metaRef.current;
-      applyPositions(setNodes, positions, radii, defaultRadius());
+      const defaultR = defaultRadius();
+
+      if (pinned) {
+        const neighborIds = new Set(
+          [...positions.keys()].filter((id) => id !== pinned),
+        );
+        if (neighborIds.size === 0) return;
+        applyPositions(setNodes, positions, radii, defaultR, neighborIds);
+        return;
+      }
+
+      applyPositions(setNodes, positions, radii, defaultR);
     },
     [setNodes, defaultRadius],
   );
@@ -422,8 +434,7 @@ export function CtdpForceController({
       const sim = simRef.current;
       if (!sim) return;
       const radius = metaRef.current.radii.get(id) ?? defaultRadius();
-      moveDraggedNode(sim, id, x + radius, y + radius);
-      driverRef.current?.start();
+      moveDraggedNode(sim, driverRef.current, id, x + radius, y + radius);
     }
 
     function onDragStop(e: Event) {
