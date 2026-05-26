@@ -17,13 +17,10 @@ export function useScrollSpine(
     if (!root || !enabled || prefersReducedMotion()) return;
 
     let ctx: gsap.Context | undefined;
-    let mm: ReturnType<typeof ScrollTrigger.matchMedia> | undefined;
 
     const mount = () => {
       ctx?.revert();
       ctx = undefined;
-      mm?.revert();
-      mm = undefined;
 
       ctx = gsap.context(() => {
         const about = root.querySelector<HTMLElement>(".js-about");
